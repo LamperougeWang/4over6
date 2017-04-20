@@ -1,10 +1,16 @@
 package com.example.ipv4_over_ipv6;
 
 import android.app.PendingIntent;
+import android.content.Intent;
 import android.net.VpnService;
 import android.os.Handler;
 import android.os.Message;
+import android.os.ParcelFileDescriptor;
+import android.util.Log;
 import android.widget.Toast;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
 
 /**
  * Created by alexzhangch on 2017/4/13.
@@ -17,10 +23,40 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     // VPN 服务器ip地址
     private String mServerAddress = "2402:f000:1:4417::900";
     private int mServerPort = 5678;
-    private PendingIntent mConfigureIntent;
 
+    private PendingIntent mConfigureIntent;
+    // 用于输出调试信息 （Toast）
     private Handler mHandler;
+    private ParcelFileDescriptor mInterface;
+
     private Thread mThread;
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        // The handler is only used to show messages.
+        if (mHandler == null) {
+            mHandler = new Handler(this);
+        }
+
+        // Stop the previous session by interrupting the thread.
+        if (mThread != null) {
+            mThread.interrupt();
+        }
+
+        if (mInterface != null) {
+            try {
+                mInterface.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        // Start a new session by creating a new thread.
+        mThread = new Thread(this, "Top_VPN_Thread");
+        mThread.start();
+        return START_STICKY;
+
+    }
 
     /**
      * Called by the system to notify a Service that it is no longer used and is being removed.  The
@@ -30,13 +66,31 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
      */
     @Override
     public void onDestroy() {
-        super.onDestroy();
+        stopVPNService();
+    }
+
+    public void stopVPNService() {
+
+        if (mThread != null) {
+            mThread.interrupt();
+        }
+        try {
+            if (mInterface != null) {
+                mInterface.close();
+            }
+        } catch (IOException ie) {
+            ie.printStackTrace();
+        }
+        mThread = null;
+        mInterface = null;
     }
 
     @Override
     public boolean handleMessage(Message message) {
         //  显示提示信息
-        Toast.makeText(this, message.what, Toast.LENGTH_SHORT).show();
+        if(message != null) {
+            Toast.makeText(this, message.what, Toast.LENGTH_SHORT).show();
+        }
         return false;
     }
 
@@ -52,7 +106,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
      * @see Thread#run()
      */
     @Override
-    public void run() {
+    public synchronized void run() {
 
     }
 }

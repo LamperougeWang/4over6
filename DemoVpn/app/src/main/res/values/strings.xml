@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">DemoVpn</string>
+
+    <string name="address">Server Address:</string>
+    <string name="port">Server Port:</string>
+    <string name="secret">Shared Secret:</string>
+    <string name="connect">Connect!</string>
+    <string name="disconnect">Disconnect!</string>
+
+    <string name="connecting">DemoVPN is connecting…</string>
+    <string name="connected">DemoVPN is connected!</string>
+    <string name="disconnected">DemoVPN is disconnected!</string>
+
+    <string name="server_ip">2402:f000:1:4417::900</string>
+    <string name="server_port">5678</string>
+</resources>
