@@ -26,6 +26,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import static com.example.ipv4_over_ipv6.NetCheck.checkNet;
+import static com.example.ipv4_over_ipv6.NetCheck.getIPv6Address;
 import static com.example.ipv4_over_ipv6.NetCheck.get_IPv6_addr;
 import static java.lang.Thread.sleep;
 
@@ -50,91 +51,26 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-        /*
-        Thread th = new Thread(new Runnable() {
-            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss");
-            @Override
-            public void run() {
-                // TODO Auto-generated method stub
-
-                try {
-
-                    Process process = Runtime.getRuntime().exec("logcat -d");
-
-                    BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-
-                    StringBuilder log = new StringBuilder();
-
-                    String line;
-
-                    int count  = 0;
-
-                    while ((line = bufferedReader.readLine()) != null && count < 10) {
-                        long time=System.currentTimeMillis();
-                        String t=format.format(new Date(time));
-                        log.append(t + line + "\n");
-                        ++count;
-                    }
-
-
-
-                    TextView tv = (TextView) findViewById(R.id.tvLog);
-
-                    tv.setText(log.toString());
-
-
-                    final ScrollView scrollView = (ScrollView) findViewById(R.id.scr);
-
-                    scrollView.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            scrollView.fullScroll(ScrollView.FOCUS_DOWN);
-                        }
-                    });
-
-
-                } catch (IOException e) {
-                    Log.d("log_out", "log error");
-
-                }
-
-                Log.d("log", "end");
-
-                try {
-                    sleep(1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
-        th.start();
-        */
-
-        // Toast.makeText(getApplicationContext(), "Success", Toast.LENGTH_SHORT).show();
 
         final Handler net_handler = new Handler();
         Runnable runnable=new Runnable() {
             @Override
             public void run() {
                 // TODO Auto-generated method stub
-                if(checkNet(getApplicationContext())) {
+                if (checkNet(getApplicationContext())) {
                     Log.d("Net", "网络已连接");
-                    try {
-                        Inet6Address inet6Address = get_IPv6_addr(getApplicationContext());
-                        EditText local_ipv6 = (EditText) findViewById(R.id.local_address);
-                        if(inet6Address != null) {
-                            // Toast.makeText(getApplicationContext(), "IPv6 网络访问正常", Toast.LENGTH_SHORT).show();
+                    String iPv6_addr = getIPv6Address();
+                    EditText local_ipv6 = (EditText) findViewById(R.id.local_address);
+                    if (iPv6_addr != null) {
+                        // Toast.makeText(getApplicationContext(), "IPv6 网络访问正常", Toast.LENGTH_SHORT).show();
 
-                            local_ipv6.setText(inet6Address.getHostAddress());
-                        }
-                        else {
-                            local_ipv6.setText("无IPv6访问权限，请检查网络");
-                        }
-                    } catch (SocketException e) {
-                        e.printStackTrace();
+                        local_ipv6.setText(iPv6_addr);
+                    } else {
+                        local_ipv6.setText("无IPv6访问权限，请检查网络");
                     }
-
                 }
+
+
                 //要做的事情
                 net_handler.postDelayed(this, 2000);
             }

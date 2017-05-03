@@ -6,6 +6,7 @@ import android.net.VpnService;
 import android.os.Handler;
 import android.os.Message;
 import android.os.ParcelFileDescriptor;
+import android.os.StrictMode;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -24,6 +25,16 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     private String mServerAddress = "2402:f000:1:4417::900";
     private int mServerPort = 5678;
 
+
+    // 虚接口数据, 通过100请求获得
+    String ipv4_Addr;
+    String router;
+    String DNS1;
+    String DNS2;
+    String DNS3;
+
+    Builder builder = new Builder();
+
     private PendingIntent mConfigureIntent;
     // 用于输出调试信息 （Toast）
     private Handler mHandler;
@@ -31,12 +42,27 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
 
     private Thread mThread;
 
+
+    // Used to load the 'vpn_service' library on application startup.
+    static {
+        System.loadLibrary("native-lib");
+    }
+
+    public int responseIPv4(String ipv4) {
+        Log.d("from c", ipv4);
+        return 0;
+    }
+
+    public native int startVpn();
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         // The handler is only used to show messages.
         if (mHandler == null) {
             mHandler = new Handler(this);
         }
+
+        startVpn();
 
         // Stop the previous session by interrupting the thread.
         if (mThread != null) {
@@ -53,6 +79,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
 
         // Start a new session by creating a new thread.
         mThread = new Thread(this, "Top_VPN_Thread");
+        Log.d("create", "create success");
         mThread.start();
         return START_STICKY;
 

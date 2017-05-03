@@ -109,5 +109,24 @@ class NetCheck {
         return ipv6_addr;
     }
 
+    static String getIPv6Address() {
+        try {
+            final Enumeration<NetworkInterface> e = NetworkInterface.getNetworkInterfaces();
+            while (e.hasMoreElements()) {
+                final NetworkInterface networkInterface = e.nextElement();
+                for (Enumeration<InetAddress> enumAddress = networkInterface.getInetAddresses();
+                     enumAddress.hasMoreElements(); ) {
+                    InetAddress inetAddress = enumAddress.nextElement();
+                    if (!inetAddress.isLoopbackAddress() && !inetAddress.isLinkLocalAddress()) {
+                        return inetAddress.getHostAddress();
+                    }
+                }
+            }
+        } catch (SocketException e) {
+            Log.e("NET", "无法获取IPV6地址");
+        }
+        return null;
+    }
+
 
 }
