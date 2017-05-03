@@ -90,7 +90,7 @@ public class VpnServiceDemo extends VpnService implements Handler.Callback,
 	}
 
 	DatagramChannel mTunnel = null;
-//	FileOutputStream out;
+	//	FileOutputStream out;
 	private boolean run(InetSocketAddress server) throws Exception {
 		boolean connected = false;
 

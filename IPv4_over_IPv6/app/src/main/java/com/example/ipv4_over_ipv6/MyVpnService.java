@@ -10,9 +10,13 @@ import android.os.StrictMode;
 import android.util.Log;
 import android.widget.Toast;
 
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.DatagramChannel;
+import java.nio.channels.SocketChannel;
 
 /**
  * Created by alexzhangch on 2017/4/13.
@@ -28,21 +32,20 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
 
 
 
-    // 虚接口数据, 通过100请求获得
-    String ipv4_Addr;
-    String router;
-    String DNS1;
-    String DNS2;
-    String DNS3;
-
     Builder builder = new Builder();
     // 从虚接口读取数据
     private PendingIntent mConfigureIntent;
     // 用于输出调试信息 （Toast）
     private Handler mHandler;
+
+    // 用于从虚接口读取数据
     private ParcelFileDescriptor mInterface;
+    private FileInputStream mInputStream;
+    private FileOutputStream mOutputStream;
 
     private Thread mThread;
+
+    private DatagramChannel mTunnel = null;
 
 
     // Used to load the 'vpn_service' library on application startup.
@@ -53,6 +56,8 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
 
 
     public native int startVpn();
+    public native boolean isGet_ip();
+    public native String ip_info();
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -61,7 +66,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             mHandler = new Handler(this);
         }
 
-        startVpn();
+        // startVpn();
 
         // Stop the previous session by interrupting the thread.
         if (mThread != null) {
@@ -104,11 +109,20 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             if (mInterface != null) {
                 mInterface.close();
             }
+            if (mInputStream != null) {
+                mInputStream.close();
+            }
+            if (mOutputStream != null) {
+                mOutputStream.close();
+            }
         } catch (IOException ie) {
             ie.printStackTrace();
         }
         mThread = null;
         mInterface = null;
+        mInputStream = null;
+        mOutputStream = null;
+        mTunnel = null;
     }
 
     @Override
@@ -118,6 +132,60 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             Toast.makeText(this, message.what, Toast.LENGTH_SHORT).show();
         }
         return false;
+    }
+
+    private void configure() throws IOException {
+
+        //  使用VPN Builder创建一个VPN接口
+        // VpnService.Builder builder = new VpnService.Builder();
+
+        String ipv4Addr;// = "13.8.0.2";
+        String router;//="0.0.0.0";
+        String dns1;//="59.66.16.64";
+        String dns2;//="8.8.8.8";
+        String dns3;//="202.106.0.20";
+
+        while(!isGet_ip()) {
+            Log.d("configure", "no ip");
+        }
+
+        String ip_response = ip_info();
+        String[] parameterArray = ip_response.split(" ");
+        if (parameterArray.length < 5) {
+            throw new IllegalStateException("Wrong IP response");
+        }
+
+        // 从服务器端读到的数据
+        ipv4Addr = parameterArray[0];
+        router = parameterArray[1];
+        dns1 = parameterArray[2];
+        dns2 = parameterArray[3];
+        dns3 = parameterArray[4];
+
+        builder.setMtu(1500);
+        builder.addAddress(ipv4Addr, 32);
+
+
+        builder.addRoute("0.0.0.0", 0); // router is "0.0.0.0" by default
+
+        builder.addDnsServer(dns1);
+        builder.addDnsServer(dns2);
+        builder.addDnsServer(dns3);
+        builder.setSession("Top Vpn");
+
+        mInterface = builder.establish();
+
+        mInputStream = new FileInputStream(mInterface.getFileDescriptor());
+        mOutputStream = new FileOutputStream(mInterface.getFileDescriptor());
+
+        //  建立一个到代理服务器的网络链接，用于数据传送
+        mTunnel = DatagramChannel.open();
+        // Protect the mTunnel before connecting to avoid loopback.
+        if (!protect(mTunnel.socket())) {
+            throw new IllegalStateException("Cannot protect the mTunnel");
+        }
+        // mTunnel.connect(new InetSocketAddress(mServerAddress, Integer.parseInt(mServerPort)));
+        mTunnel.configureBlocking(false);
     }
 
     /**
@@ -135,10 +203,9 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     public synchronized void run() {
         try {
             Log.i(TAG, "Starting");
-            InetSocketAddress server = new InetSocketAddress(mServerAddress,
-                    mServerPort);
 
-            run(server);
+
+            run_vpn();
 
         } catch (Exception e) {
             Log.e(TAG, "Got " + e.toString());
@@ -155,6 +222,41 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
 
         }
     }
+
+    private boolean run_vpn() throws IOException {
+        boolean connected = false;
+
+        // Create a DatagramChannel as the VPN tunnel.
+        mTunnel = DatagramChannel.open();
+
+        // Protect the tunnel before connecting to avoid loopback.
+        if (!protect(mTunnel.socket())) {
+            throw new IllegalStateException("Cannot protect the tunnel");
+        }
+
+        // Connect to the server.
+        //  mTunnel.connect(server);
+
+        // For simplicity, we use the same thread for both reading and
+        // writing. Here we put the tunnel into non-blocking mode.
+        mTunnel.configureBlocking(false);
+
+        // Authenticate and configure the virtual network interface.
+        handshake();
+
+        // Now we are connected. Set the flag and show the message.
+        connected = true;
+        Message msgObj = mHandler.obtainMessage();
+        msgObj.obj = "Connected";
+        mHandler.sendMessage(msgObj);
+
+
+        return connected;
+
+    }
+
+
+
 
 
     private void debugPacket(ByteBuffer packet) {
