@@ -12,6 +12,7 @@ import android.widget.Toast;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 
 /**
  * Created by alexzhangch on 2017/4/13.
@@ -26,6 +27,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     private int mServerPort = 5678;
 
 
+
     // 虚接口数据, 通过100请求获得
     String ipv4_Addr;
     String router;
@@ -34,7 +36,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     String DNS3;
 
     Builder builder = new Builder();
-
+    // 从虚接口读取数据
     private PendingIntent mConfigureIntent;
     // 用于输出调试信息 （Toast）
     private Handler mHandler;
@@ -48,10 +50,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         System.loadLibrary("native-lib");
     }
 
-    public int responseIPv4(String ipv4) {
-        Log.d("from c", ipv4);
-        return 0;
-    }
+
 
     public native int startVpn();
 
@@ -134,6 +133,104 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
      */
     @Override
     public synchronized void run() {
+        try {
+            Log.i(TAG, "Starting");
+            InetSocketAddress server = new InetSocketAddress(mServerAddress,
+                    mServerPort);
+
+            run(server);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Got " + e.toString());
+            try {
+                mInterface.close();
+            } catch (Exception e2) {
+                // ignore
+            }
+            Message msgObj = mHandler.obtainMessage();
+            msgObj.obj = "Disconnected";
+            mHandler.sendMessage(msgObj);
+
+        } finally {
+
+        }
+    }
+
+
+    private void debugPacket(ByteBuffer packet) {
+		/*
+		 * for(int i = 0; i < length; ++i) { byte buffer = packet.get();
+		 *
+		 * Log.d(TAG, "byte:"+buffer); }
+		 */
+
+        int buffer = packet.get();
+        int version;
+        int headerlength;
+        version = buffer >> 4;
+        headerlength = buffer & 0x0F;
+        headerlength *= 4;
+        Log.d(TAG, "IP Version:" + version);
+        Log.d(TAG, "Header Length:" + headerlength);
+
+        String status = "";
+        status += "Header Length:" + headerlength;
+
+        buffer = packet.get(); // DSCP + EN
+        buffer = packet.getChar(); // Total Length
+
+        Log.d(TAG, "Total Length:" + buffer);
+
+        buffer = packet.getChar(); // Identification
+        buffer = packet.getChar(); // Flags + Fragment Offset
+        buffer = packet.get(); // Time to Live
+        buffer = packet.get(); // Protocol
+
+        Log.d(TAG, "Protocol:" + buffer);
+
+        status += "  Protocol:" + buffer;
+
+        buffer = packet.getChar(); // Header checksum
+
+        String sourceIP = "";
+        buffer = packet.get(); // Source IP 1st Octet
+        sourceIP += buffer;
+        sourceIP += ".";
+
+        buffer = packet.get(); // Source IP 2nd Octet
+        sourceIP += buffer;
+        sourceIP += ".";
+
+        buffer = packet.get(); // Source IP 3rd Octet
+        sourceIP += buffer;
+        sourceIP += ".";
+
+        buffer = packet.get(); // Source IP 4th Octet
+        sourceIP += buffer;
+
+        Log.d(TAG, "Source IP:" + sourceIP);
+
+        status += "   Source IP:" + sourceIP;
+
+        String destIP = "";
+        buffer = packet.get(); // Destination IP 1st Octet
+        destIP += buffer;
+        destIP += ".";
+
+        buffer = packet.get(); // Destination IP 2nd Octet
+        destIP += buffer;
+        destIP += ".";
+
+        buffer = packet.get(); // Destination IP 3rd Octet
+        destIP += buffer;
+        destIP += ".";
+
+        buffer = packet.get(); // Destination IP 4th Octet
+        destIP += buffer;
+
+        Log.d(TAG, "Destination IP:" + destIP);
+
+        status += "   Destination IP:" + destIP;
 
     }
 }

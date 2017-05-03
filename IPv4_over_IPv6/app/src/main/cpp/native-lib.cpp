@@ -82,20 +82,6 @@ const int WEB_RESPONSE = 103;
 // 104 心跳包
 const int HEART_BEAT = 104;
 
-struct Msg_Hdr {
-    uint32_t length; // payload 长度,不包括type, 注意协议切割
-    char type; //
-};
-struct Msg{
-    struct Msg_Hdr hdr;
-    char ipv4_payload[MAX_IPV4_PAYLOAD];
-};
-
-void request_ipv4(int fd);
-void connect_server();
-void recv_ipv4_addr(Msg* msg);
-void do_keep_alive();
-void recv_ipv4_packet(Msg* msg);
 
 
 
