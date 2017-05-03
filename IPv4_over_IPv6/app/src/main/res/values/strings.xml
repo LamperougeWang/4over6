@@ -17,4 +17,6 @@
     <string name="local_ip">无IPv6访问权限，请检查网络</string>
     <string name="hello_world">Hello world!</string>
 
+    <string name="debug">before start</string>
+
 </resources>

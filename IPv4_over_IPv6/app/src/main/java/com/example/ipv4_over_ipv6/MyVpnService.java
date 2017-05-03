@@ -18,6 +18,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.SocketChannel;
 
+import static java.lang.Thread.sleep;
+
 /**
  * Created by alexzhangch on 2017/4/13.
  */
@@ -46,9 +48,11 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     private Thread mThread;
 
     private DatagramChannel mTunnel = null;
+    private static final int PACK_SIZE = 32767 * 2;
 
 
-    // Used to load the 'vpn_service' library on application startup.
+
+    // Used to load the 'native-lib' library on application startup.
     static {
         System.loadLibrary("native-lib");
     }
@@ -60,13 +64,29 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     public native String ip_info();
 
     @Override
+    public void onCreate() {
+        Log.e(TAG, "onCreate: before");
+        super.onCreate();
+        Log.e(TAG, "onCreate: after");
+    }
+
+    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         // The handler is only used to show messages.
         if (mHandler == null) {
             mHandler = new Handler(this);
         }
+        Log.e("IMPORTANT", "before start");
+        mHandler.sendEmptyMessage(R.string.debug);
+        Thread temp = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                startVpn();
+            }
+        });
+        temp.start();
+        Log.e("IMPORTANT", "after start");
 
-        // startVpn();
 
         // Stop the previous session by interrupting the thread.
         if (mThread != null) {
@@ -83,7 +103,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
 
         // Start a new session by creating a new thread.
         mThread = new Thread(this, "Top_VPN_Thread");
-        Log.d("create", "create success");
+        Log.e("create", "create success");
         mThread.start();
         return START_STICKY;
 
@@ -134,7 +154,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         return false;
     }
 
-    private void configure() throws IOException {
+    private void configure() throws IOException, InterruptedException {
 
         //  使用VPN Builder创建一个VPN接口
         // VpnService.Builder builder = new VpnService.Builder();
@@ -146,7 +166,8 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         String dns3;//="202.106.0.20";
 
         while(!isGet_ip()) {
-            Log.d("configure", "no ip");
+            Log.e("configure", "no ip");
+            sleep(2000);
         }
 
         String ip_response = ip_info();
@@ -201,57 +222,44 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
      */
     @Override
     public synchronized void run() {
+
+        mHandler.sendEmptyMessage(R.string.connecting);
+
         try {
-            Log.i(TAG, "Starting");
-
-
+            Log.e(TAG, "Starting");
+            configure();
+            mHandler.sendEmptyMessage(R.string.connected);
             run_vpn();
 
         } catch (Exception e) {
             Log.e(TAG, "Got " + e.toString());
+        } finally {
             try {
                 mInterface.close();
-            } catch (Exception e2) {
-                // ignore
+                mTunnel.close();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-            Message msgObj = mHandler.obtainMessage();
-            msgObj.obj = "Disconnected";
-            mHandler.sendMessage(msgObj);
-
-        } finally {
-
+            mHandler.sendEmptyMessage(R.string.disconnected);
         }
     }
 
     private boolean run_vpn() throws IOException {
-        boolean connected = false;
+        ByteBuffer packet = ByteBuffer.allocate(PACK_SIZE);
 
-        // Create a DatagramChannel as the VPN tunnel.
-        mTunnel = DatagramChannel.open();
+        while (true) {
 
-        // Protect the tunnel before connecting to avoid loopback.
-        if (!protect(mTunnel.socket())) {
-            throw new IllegalStateException("Cannot protect the tunnel");
+            int length = mInputStream.read(packet.array());
+            if (length > 0) {
+
+                debugPacket(packet);
+
+                //NetworkUtils.logIPPack(TAG, packet, length);
+                packet.limit(length);
+                // mTunnel.write(packet);
+                packet.clear();
+            }
         }
-
-        // Connect to the server.
-        //  mTunnel.connect(server);
-
-        // For simplicity, we use the same thread for both reading and
-        // writing. Here we put the tunnel into non-blocking mode.
-        mTunnel.configureBlocking(false);
-
-        // Authenticate and configure the virtual network interface.
-        handshake();
-
-        // Now we are connected. Set the flag and show the message.
-        connected = true;
-        Message msgObj = mHandler.obtainMessage();
-        msgObj.obj = "Connected";
-        mHandler.sendMessage(msgObj);
-
-
-        return connected;
 
     }
 

@@ -5,12 +5,26 @@
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <android/log.h>
-
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <resolv.h>
+#include <stdlib.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <time.h>
 
 using namespace std;
 
 #define TAG "Back JNI" // 这个是自定义的LOG的标识
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG,TAG ,__VA_ARGS__) // 定义LOGD类型
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__) // 定义LOGD类型
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__))
 
 #define big_size 2014
 #define small_size 50
@@ -76,7 +90,7 @@ void * send_heart(void *arg) {
     send_msg.length = 5;
     send_msg.type = HEART_BEAT;
     memset(&(send_msg.data), 0, sizeof(send_msg.data));
-    printf("%lu\n", sizeof(send_msg));
+    printf("%du\n", sizeof(send_msg));
     while(!over_time) {
         printf("发送心跳包%ld\n", time(NULL));
 
@@ -104,8 +118,8 @@ void * send_web_request(void *arg) {
     memset(&(send_msg.data), 0, sizeof(send_msg.data));
     memcpy(&(send_msg.data), data, sizeof(data));
 
-    printf("%lu\n", sizeof(send_msg.data));
-    printf("%lu\n", strlen(send_msg.data));
+    printf("%du\n", sizeof(send_msg.data));
+    printf("%du\n", strlen(send_msg.data));
 
     while(!over_time) {
         printf("发送数据\n");
@@ -166,20 +180,21 @@ void * manage_data(void *arg) {
                 sprintf(toWrite, "%s %s %s %s %s %d", ip, router, dns1, dns2, dns3, sockfd);
                 printf("收到IP回应%s\n", toWrite);
                 get_ip = true;
-                LOGD("收到101");
-                LOGD(toWrite);
+                LOGD("%s", "收到101");
+                LOGD("%s", toWrite);
+                __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", toWrite) ;
                 break;
             case WEB_RESPONSE:
                 // 上网应答
                 printf("上网应答：%d, 内容 %s\n", recv_msg.type, recv_msg.data);
-                LOGD("收到103");
+                LOGD("%s", "收到103");
                 return NULL;
                 break;
             case HEART_BEAT:
                 // 心跳包,记录接收时间
                 s = time(NULL);
                 printf("%d 收到心跳包 %ld\n", recv_msg.type, s);
-                LOGD("收到104");
+                LOGD("%s", "收到104");
                 break;
 
             default:
@@ -191,10 +206,16 @@ void * manage_data(void *arg) {
     }
 }
 
+extern "C"
 JNIEXPORT jint JNICALL
 Java_com_example_ipv4_1over_1ipv6_MyVpnService_startVpn(JNIEnv *env, jobject instance) {
 
+    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "Your params is null");
+
     // TODO
+    LOGD("c");
+
+
     int length;
     struct sockaddr_in6 server;
     char buffer[MAXBUF + 1];
@@ -223,6 +244,8 @@ Java_com_example_ipv4_1over_1ipv6_MyVpnService_startVpn(JNIEnv *env, jobject ins
 
 
     request_ipv4(sockfd);
+
+    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "hh");
 
     pthread_t recv_data;
     pthread_t heart_th;
@@ -260,13 +283,16 @@ Java_com_example_ipv4_1over_1ipv6_MyVpnService_startVpn(JNIEnv *env, jobject ins
 
 }
 
+extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_example_ipv4_1over_1ipv6_MyVpnService_isGet_1ip(JNIEnv *env, jobject instance) {
 
     // TODO
+    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", toWrite) ;
     return (jboolean) get_ip;
 }
 
+extern "C"
 JNIEXPORT jstring JNICALL
 Java_com_example_ipv4_1over_1ipv6_MyVpnService_ip_1info(JNIEnv *env, jobject instance) {
 

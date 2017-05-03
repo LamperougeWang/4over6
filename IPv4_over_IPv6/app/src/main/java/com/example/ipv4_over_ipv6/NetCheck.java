@@ -43,7 +43,7 @@ class NetCheck {
         NetworkInfo networkInfo = manager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
         if (networkInfo != null && networkInfo.isConnected())
         {
-            Log.e("Net", "Wifi 已连接");
+            // Log.e("Net", "Wifi 已连接");
             return true;
         }
         Log.e("Net", "无Wifi连接");
@@ -55,7 +55,7 @@ class NetCheck {
         NetworkInfo networkInfo = manager.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
         if (networkInfo != null && networkInfo.isConnected())
         {
-            Log.e("net", "数据信号 已连接");
+            // Log.e("net", "数据信号 已连接");
             return true;
         }
         // Log.e("Net", "Mobile net not connected.");

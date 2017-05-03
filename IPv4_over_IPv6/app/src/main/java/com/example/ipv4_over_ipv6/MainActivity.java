@@ -33,9 +33,11 @@ import static java.lang.Thread.sleep;
 public class MainActivity extends AppCompatActivity {
 
     // Used to load the 'native-lib' library on application startup.
+    /*
     static {
         System.loadLibrary("native-lib");
     }
+    */
 
 
     @Override
@@ -90,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
                 // 询问用户权限，检查当前是否已经有VPN连接，如果有判断是否是本程序创建的
                 Intent intent = VpnService.prepare(getApplicationContext());
                 Toast.makeText(getApplicationContext(), "Top VPN is connecting...", Toast.LENGTH_SHORT).show();
-                Log.d("Click", "Top VPN is connecting...");
+                Log.e("Click", "Top VPN 正在连接");
                 if (intent != null) {
                     // 没有VPN连接，或者不是本程序创建的
                     startActivityForResult(intent, 0);
@@ -102,7 +104,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Example of a call to a native method
         TextView tv = (TextView) findViewById(R.id.sample_text);
-        tv.setText(stringFromJNI());
+        // tv.setText(stringFromJNI());
     }
 
 
@@ -110,7 +112,10 @@ public class MainActivity extends AppCompatActivity {
         if (resultCode == RESULT_OK) {
             // 如果返回结果是OK的，也就是用户同意建立VPN连接，则将你写的，继承自VpnService类的服务启动起来就行了。
             Intent intent = new Intent(this, MyVpnService.class);
+            // Intent intent = new Intent(this, VpnServiceDemo.class);
+            Toast.makeText(getApplicationContext(), "Before in", Toast.LENGTH_SHORT).show();
             startService(intent);
+            Toast.makeText(getApplicationContext(), "after in", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -118,5 +123,5 @@ public class MainActivity extends AppCompatActivity {
      * A native method that is implemented by the 'native-lib' native library,
      * which is packaged with this application.
      */
-    public native String stringFromJNI();
+    // public native String stringFromJNI();
 }
