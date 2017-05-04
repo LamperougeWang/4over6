@@ -27,7 +27,7 @@ import static java.lang.Thread.sleep;
 
 public class MyVpnService extends VpnService implements Handler.Callback, Runnable{
 
-    private static final String TAG = "Top Vpn";
+    private static final String TAG = "Top_Vpn";
 
     // VPN 服务器ip地址
     private String mServerAddress = "2402:f000:1:4417::900";
@@ -68,6 +68,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     public native String ip_info();
     // 发送数据
     public native int send_web_request(char [] data, int length);
+    public native int send_web_requestt(String data, int length);
 
     @Override
     public void onCreate() {
@@ -139,15 +140,16 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             cThread.interrupt();
         }
         try {
-            if (mInterface != null) {
-                mInterface.close();
-            }
             if (mInputStream != null) {
                 mInputStream.close();
             }
             if (mOutputStream != null) {
                 mOutputStream.close();
             }
+            if (mInterface != null) {
+                mInterface.close();
+            }
+
         } catch (IOException ie) {
             ie.printStackTrace();
         }
@@ -212,7 +214,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         builder.setSession("Top Vpn");
 
         mInterface = builder.establish();
-
+        // Packets received need to be written tothis output stream.
         mInputStream = new FileInputStream(mInterface.getFileDescriptor());
         mOutputStream = new FileOutputStream(mInterface.getFileDescriptor());
 
@@ -299,17 +301,24 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             int length = mInputStream.read(packet.array());
             if (length > 0) {
 
-                debugPacket(packet);
+                // debugPacket(packet);
+                // NetworkUtils.logIPPack(TAG, packet, length);
                 byte[] array = packet.array();
+                String data = new String(array);
+                /*
                 char[] chars = new char[packet.remaining()];
                 for (int i = 0; i < chars.length; i++)
                     chars[i] = (char) (array[i + packet.position()] & 0xFF);
+                */
 
-                send_web_request(chars, length);
+                // send_web_requestt(data, length);
+                // Log.e(TAG, "发送完毕");
+                // Log.e(TAG, data);
+                // Log.e("LEN", String.valueOf(chars.length));
 
                 //NetworkUtils.logIPPack(TAG, packet, length);
                 packet.limit(length);
-                Log.e(TAG, String.valueOf(length));
+                // Log.e(TAG, String.valueOf(length));
                 // mTunnel.write(packet);
                 packet.clear();
             }

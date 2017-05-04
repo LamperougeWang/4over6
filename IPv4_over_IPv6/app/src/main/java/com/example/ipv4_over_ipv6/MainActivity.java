@@ -43,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
     }
     */
 
-    private boolean start = true;
+    private boolean start = false;
     private MyVpnService mVPNService;
 
     private ServiceConnection mServiceConnection = new ServiceConnection() {
@@ -102,12 +102,12 @@ public class MainActivity extends AppCompatActivity {
 
 
         // 点击按钮连接VPN
-        Button startVPN;
+        final Button startVPN;
         startVPN = (Button) findViewById(R.id.startVPN);
         startVPN.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-
+                start = !start;
                 if(start) {
                     // 客户程序一般需要先调用VpnService.prepare函数
                     // 询问用户权限，检查当前是否已经有VPN连接，如果有判断是否是本程序创建的
@@ -142,7 +142,12 @@ public class MainActivity extends AppCompatActivity {
             // 如果返回结果是OK的，也就是用户同意建立VPN连接，则将你写的，继承自VpnService类的服务启动起来就行了。
             Intent intent = new Intent(this, MyVpnService.class);
             startService(intent);
-            bindService(intent, mServiceConnection, Context.BIND_AUTO_CREATE);
+            /*
+            if(start) {
+                bindService(intent, mServiceConnection, Context.BIND_AUTO_CREATE);
+            }
+            */
+            start = false;
 
         }
     }

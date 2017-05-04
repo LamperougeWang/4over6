@@ -131,7 +131,7 @@ void request_ipv4(int sockfd) {
         fprintf(stderr, "发送失败\n");
     }
 
-    LOGE("IPV4地址请求");
+    LOGE("%s", "IPV4地址请求");
 
 }
 
@@ -152,13 +152,14 @@ void * send_heart(void *arg) {
         // 向服务器发送数据
         if (send(sockfd, &send_msg, sizeof(send_msg), 0) < 0)
         {
-            close(sockfd);
+            // close(sockfd);
             fprintf(stderr, "发送失败\n");
         }
+        LOGE("%s %ld", "发送心跳包", time(NULL));
 
         sleep(20);
     }
-    LOGE("send heart beat");
+    
 
 
     return NULL;
@@ -197,58 +198,58 @@ void * manage_data(void *arg) {
 
         if (test) {
             // 自己的服务端
-            memset(&msg, 0, sizeof(struct Msg));
             ssize_t needbs = sizeof(struct Msg_Hdr);
 
             memset(&msg, 0, sizeof(struct Msg));
             if(read(sockfd, &msg, needbs) < 0) {
-                LOGE("can't read header");
+                LOGE("%s", "can't read header");
             }
-
-            switch (msg.hdr.type) {
+            else {
+                switch (msg.hdr.type) {
                 case IP_RESPONSE:
                     // IP响应
-                    if(read(sockfd, msg.ipv4_payload, msg.hdr.length) < 0) {
-                        __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "lient read 101 reply payload") ;
-                    }
-                    char  ip_[5][16];
-                    Ipv4_Request_Reply* reply = (Ipv4_Request_Reply*)recv_msg.data;
-                    for(int i = 0 ; i < 5; ++i) {
-                        char buf[16];
-                        inet_ntop(AF_INET, &(reply->addr_v4[i]), ip_[i], sizeof(ip_[i]));
-                        // ip[i] =
-                        // fprintf(stderr,"recev %d , ip_v4: %s \n",i, buf);
-                    }
-                    for(int i = 0 ; i < 5; ++i) {
-                        char buf[16];
-                        inet_ntop(AF_INET, &(reply->addr_v4[i]), buf,sizeof(buf));
-                        __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "recev %d , ip_v4: %s \n",i, buf);
-                    }
-                    sprintf(toWrite, "%s %s %s %s %s %d", ip_[0], ip_[1], ip_[2], ip_[3], ip_[4], sockfd);
-                    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "after");
+                    {
+                        if(read(sockfd, msg.ipv4_payload, msg.hdr.length) < 0) {
+                            __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "can't read 101 reply payload") ;
+                        }
+                        char  ip_[5][16];
+                        Ipv4_Request_Reply* reply = (Ipv4_Request_Reply*)msg.ipv4_payload;
+                        for(int i = 0 ; i < 5; ++i) {
+                            char buf[16];
+                            inet_ntop(AF_INET, &(reply->addr_v4[i]), ip_[i], sizeof(ip_[i]));
+                        }
+                        
+                        sprintf(toWrite, "%s %s %s %s %s %d", ip_[0], ip_[1], ip_[2], ip_[3], ip_[4], sockfd);
+                        get_ip = true;
 
-                    get_ip = true;
-                    LOGD("%s", "收到101");
-                    LOGD("%s", toWrite);
-                    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", toWrite) ;
-                    break;
+                        LOGE("收到 %s", toWrite);
+
+                        break;
+                    }
+                
                 case WEB_RESPONSE:
                     // 上网应答
-                    printf("上网应答：%d, 内容 %s\n", recv_msg.type, recv_msg.data);
-                    LOGD("%s", "收到103");
-                    return NULL;
-                    // break;
+                    // printf("上网应答：%d, 内容 %s\n", msg.type, recv_msg.data);
+                    // LOGD("%s", "收到103");
+                    // int n = sizeof(struct udphdr);
+                    read(sockfd, msg.ipv4_payload, msg.hdr.length);
+                    LOGE("收到 %s", (char*)msg.ipv4_payload+28);
+                    // return NULL;
+                    break;
                 case HEART_BEAT:
                     // 心跳包,记录接收时间
                     s = time(NULL);
-                    printf("%d 收到心跳包 %ld\n", recv_msg.type, s);
-                    LOGD("%s", "收到104");
+                    LOGE("%d 收到心跳包 %ld\n", msg.hdr.type, s);
+                    // LOGE("%s", "收到104");
                     break;
-                
                 default:
-                    printf("其他 %d %s\n", recv_msg.type, recv_msg.data);
+                    LOGE("收到其他消息%d %d\n", msg.hdr.type, msg.hdr.length);
                     break;
             }
+
+            }
+
+            
 
 
         } 
@@ -264,9 +265,7 @@ void * manage_data(void *arg) {
                     sscanf(recv_msg.data, "%s%s%s%s%s", ip, router, dns1, dns2, dns3);
                     sprintf(toWrite, "%s %s %s %s %s %d", ip, router, dns1, dns2, dns3, sockfd);
                     get_ip = true;
-                    LOGD("%s", "收到101");
-                    LOGD("%s", toWrite);
-                    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", toWrite) ;
+                    LOGE("%s", toWrite);
                     break;
                 case WEB_RESPONSE:
                     // 上网应答
@@ -294,7 +293,40 @@ void * manage_data(void *arg) {
     }
 }
 
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_example_ipv4_1over_1ipv6_MyVpnService_send_1web_1requestt(JNIEnv *env, jobject instance,
+                                                                   jstring data_, jint length) {
+    const char *data = env->GetStringUTFChars(data_, 0);
 
+    // TODO
+    struct Message send_msg;
+    __android_log_print(ANDROID_LOG_ERROR, TAG, "%d %lu %s", length, sizeof(*data), data) ;
+
+    createMessage(&send_msg, WEB_REQUEST, (char *) data, length);
+    // 向服务器发送数据
+    if(test) {
+        if (send(sockfd, &send_msg, sizeof(struct Msg_Hdr) + send_msg.length, 0) < 0){
+            // close(sockfd);
+            __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "发送失败") ;
+            return -1;
+        }
+    }
+    else {
+        if (send(sockfd, &send_msg, sizeof(send_msg), 0) < 0){
+            // close(sockfd);
+            __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "发送失败") ;
+            return -1;
+        }
+    }
+
+
+    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "发送成功") ;
+
+    env->ReleaseStringUTFChars(data_, data);
+}
+
+extern "C"
 JNIEXPORT jint JNICALL
 Java_com_example_ipv4_1over_1ipv6_MyVpnService_send_1web_1request(JNIEnv *env, jobject instance,
                                                                   jcharArray data_, jint length) {
@@ -302,15 +334,25 @@ Java_com_example_ipv4_1over_1ipv6_MyVpnService_send_1web_1request(JNIEnv *env, j
 
     // TODO
     struct Message send_msg;
-    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "准备发送") ;
+    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s %d", (char *)data, length) ;
 
     createMessage(&send_msg, WEB_REQUEST, (char *) data, length);
     // 向服务器发送数据
-    if (send(sockfd, &send_msg, sizeof(send_msg), 0) < 0)
-    {
-        close(sockfd);
-        __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "发送失败") ;
+    if(test) {
+        if (send(sockfd, &send_msg, sizeof(struct Msg_Hdr) + send_msg.length, 0) < 0){
+            // close(sockfd);
+            __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "发送失败") ;
+            return -1;
+        }
     }
+    else {
+        if (send(sockfd, &send_msg, sizeof(send_msg), 0) < 0){
+            // close(sockfd);
+            __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "发送失败") ;
+            return -1;
+        }
+    }
+    
 
     __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "发送成功") ;
 
