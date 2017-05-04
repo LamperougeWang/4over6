@@ -1,8 +1,12 @@
 package com.example.ipv4_over_ipv6;
 
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.net.VpnService;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -38,6 +42,21 @@ public class MainActivity extends AppCompatActivity {
         System.loadLibrary("native-lib");
     }
     */
+
+    private boolean start = true;
+    private MyVpnService mVPNService;
+
+    private ServiceConnection mServiceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mVPNService = ((MyVpnService.VPNServiceBinder) service).getService();
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+
+        }
+    };
 
 
     @Override
@@ -88,22 +107,32 @@ public class MainActivity extends AppCompatActivity {
         startVPN.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 客户程序一般需要先调用VpnService.prepare函数
-                // 询问用户权限，检查当前是否已经有VPN连接，如果有判断是否是本程序创建的
-                Intent intent = VpnService.prepare(getApplicationContext());
-                Toast.makeText(getApplicationContext(), "Top VPN is connecting...", Toast.LENGTH_SHORT).show();
-                Log.e("Click", "Top VPN 正在连接");
-                if (intent != null) {
-                    // 没有VPN连接，或者不是本程序创建的
-                    startActivityForResult(intent, 0);
-                } else {
-                    onActivityResult(0, RESULT_OK, null);
+
+                if(start) {
+                    // 客户程序一般需要先调用VpnService.prepare函数
+                    // 询问用户权限，检查当前是否已经有VPN连接，如果有判断是否是本程序创建的
+                    Intent intent = VpnService.prepare(getApplicationContext());
+                    // Toast.makeText(getApplicationContext(), "Top VPN is connecting...", Toast.LENGTH_SHORT).show();
+                    Log.e("Click", "Top VPN 正在连接");
+                    if (intent != null) {
+                        // 没有VPN连接，或者不是本程序创建的
+                        startActivityForResult(intent, 0);
+                    } else {
+                        onActivityResult(0, RESULT_OK, null);
+                    }
                 }
+                else {
+                    mVPNService.stopVPNService();
+                    // Intent intent = new Intent(this, MyVpnService.class);
+                    // stopService(intent);
+
+                }
+
             }
         });
 
         // Example of a call to a native method
-        TextView tv = (TextView) findViewById(R.id.sample_text);
+        // TextView tv = (TextView) findViewById(R.id.sample_text);
         // tv.setText(stringFromJNI());
     }
 
@@ -112,10 +141,9 @@ public class MainActivity extends AppCompatActivity {
         if (resultCode == RESULT_OK) {
             // 如果返回结果是OK的，也就是用户同意建立VPN连接，则将你写的，继承自VpnService类的服务启动起来就行了。
             Intent intent = new Intent(this, MyVpnService.class);
-            // Intent intent = new Intent(this, VpnServiceDemo.class);
-            Toast.makeText(getApplicationContext(), "Before in", Toast.LENGTH_SHORT).show();
             startService(intent);
-            Toast.makeText(getApplicationContext(), "after in", Toast.LENGTH_SHORT).show();
+            bindService(intent, mServiceConnection, Context.BIND_AUTO_CREATE);
+
         }
     }
 

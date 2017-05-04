@@ -1,10 +1,13 @@
 #include <jni.h>
 #include <string>
-#include<iostream>
+#include <iostream>
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <android/log.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -19,26 +22,51 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <time.h>
+extern "C"
 
 using namespace std;
 
 #define TAG "Back JNI" // 这个是自定义的LOG的标识
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__) // 定义LOGD类型
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__))
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
 
 #define big_size 2014
 #define small_size 50
 #define MAXBUF 10240
 #define MAX_FIFO_BUF 1024
 #define MAX_MESSAGE_LENGTH 4096
+
+
 #define VPN_SERVER_IPV6_ADDRESS "2402:f000:1:4417::900"
 #define VPN_SERVER_TCP_PORT 5678
+
+#define VPN_SERVER_IPV6_ADDRESS_TEST "2402:f000:5:8601:8e23:e6e3:b7:3110"
+
+#define VPN_SERVER_TCP_PORT_TEST 6666
+
 // 客户端消息结构体
 struct Message {
     int length;                             // 整个结构体的字节长度
     char type;                              // 类型
     char data[MAX_MESSAGE_LENGTH];          // 数据段
 };
+
+struct Msg_Hdr {
+    uint32_t length; // payload 长度,不包括type, 注意协议切割
+    char type; //
+};
+
+struct Msg{
+    struct Msg_Hdr hdr;
+    char ipv4_payload[MAX_MESSAGE_LENGTH];
+};
+
+
+struct Ipv4_Request_Reply{
+    struct in_addr addr_v4[5];
+};
+
+in_addr addr_v4[5];
 
 // 100 IP地址请求
 const int IP_REQUEST = 100;
@@ -51,6 +79,8 @@ const int WEB_RESPONSE = 103;
 // 104 心跳包
 const int HEART_BEAT = 104;
 
+// VPN是否已连接
+bool connected = false;
 // 是否得到101包
 bool get_ip  = false;
 // 获取到的ip数据
@@ -64,15 +94,35 @@ int live_flag = 0;
 //time_t是long类型，精确到秒，是当前时间和1970年1月1日零点时间的差
 time_t s = time(NULL);
 
+bool test = true;
+
+void createMessage(struct Message* msg, int type, char* data, int length)
+{
+    msg->type = type;
+    if (data == NULL) {
+        length = 0;
+    } else // (data != NULL)
+    {
+        memset(&(msg->data), 0, sizeof(msg->data));
+        memcpy(&(msg->data), data, length);
+    }
+    if(test) {
+        msg->length = length;
+
+    } else{
+        msg->length = 5+length;
+    }
+}
 
 void request_ipv4(int sockfd) {
     struct Message send_msg;
 
     // 创建发送数据包
-    send_msg.length = 5;
-    send_msg.type = IP_REQUEST;
-    memset(&(send_msg.data), 0, sizeof(send_msg.data));
+    // send_msg.length = 5;
+    // send_msg.type = IP_REQUEST;
+    // memset(&(send_msg.data), 0, sizeof(send_msg.data));
 
+    createMessage(&send_msg, IP_REQUEST, NULL, 0);
 
     // 向服务器发送数据
     if (send(sockfd, &send_msg, sizeof(send_msg), 0) < 0)
@@ -80,6 +130,9 @@ void request_ipv4(int sockfd) {
         close(sockfd);
         fprintf(stderr, "发送失败\n");
     }
+
+    LOGE("IPV4地址请求");
+
 }
 
 
@@ -87,12 +140,14 @@ void * send_heart(void *arg) {
     struct Message send_msg;
 
     // 创建发送数据包
-    send_msg.length = 5;
+    createMessage(&send_msg, HEART_BEAT, NULL, 0);
+    /*send_msg.length = 0;
     send_msg.type = HEART_BEAT;
     memset(&(send_msg.data), 0, sizeof(send_msg.data));
     printf("%du\n", sizeof(send_msg));
+     */
     while(!over_time) {
-        printf("发送心跳包%ld\n", time(NULL));
+        // printf("发送心跳包%ld\n", time(NULL));
 
         // 向服务器发送数据
         if (send(sockfd, &send_msg, sizeof(send_msg), 0) < 0)
@@ -103,39 +158,13 @@ void * send_heart(void *arg) {
 
         sleep(20);
     }
+    LOGE("send heart beat");
+
 
     return NULL;
 }
 
 
-void * send_web_request(void *arg) {
-    struct Message send_msg;
-
-    // 创建发送数据包
-    send_msg.length = 5;
-    send_msg.type = WEB_REQUEST;
-    char data[] = "2333sfhs";
-    memset(&(send_msg.data), 0, sizeof(send_msg.data));
-    memcpy(&(send_msg.data), data, sizeof(data));
-
-    printf("%du\n", sizeof(send_msg.data));
-    printf("%du\n", strlen(send_msg.data));
-
-    while(!over_time) {
-        printf("发送数据\n");
-
-        // 向服务器发送数据
-        if (send(sockfd, &send_msg, sizeof(send_msg), 0) < 0)
-        {
-            close(sockfd);
-            fprintf(stderr, "发送失败\n");
-        }
-
-        sleep(20);
-    }
-
-    return NULL;
-}
 
 
 /*
@@ -149,10 +178,10 @@ void * manage_data(void *arg) {
     struct Message send_msg, recv_msg;
     unsigned long int tid_tun = -1;
 
-
+    static struct Msg msg;
 
     // 接收数据包的处理函数，应该采用线程方式
-    while(1) {
+    while(connected) {
         // 读取虚接口信息，写入管道
 
         // 判断心跳包时间
@@ -161,49 +190,132 @@ void * manage_data(void *arg) {
         if(t > 60) {
             // 关闭套接字
             over_time = true;
+            connected = false;
+            close(sockfd);
             return NULL;
         }
 
+        if (test) {
+            // 自己的服务端
+            memset(&msg, 0, sizeof(struct Msg));
+            ssize_t needbs = sizeof(struct Msg_Hdr);
+
+            memset(&msg, 0, sizeof(struct Msg));
+            if(read(sockfd, &msg, needbs) < 0) {
+                LOGE("can't read header");
+            }
+
+            switch (msg.hdr.type) {
+                case IP_RESPONSE:
+                    // IP响应
+                    if(read(sockfd, msg.ipv4_payload, msg.hdr.length) < 0) {
+                        __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "lient read 101 reply payload") ;
+                    }
+                    char  ip_[5][16];
+                    Ipv4_Request_Reply* reply = (Ipv4_Request_Reply*)recv_msg.data;
+                    for(int i = 0 ; i < 5; ++i) {
+                        char buf[16];
+                        inet_ntop(AF_INET, &(reply->addr_v4[i]), ip_[i], sizeof(ip_[i]));
+                        // ip[i] =
+                        // fprintf(stderr,"recev %d , ip_v4: %s \n",i, buf);
+                    }
+                    for(int i = 0 ; i < 5; ++i) {
+                        char buf[16];
+                        inet_ntop(AF_INET, &(reply->addr_v4[i]), buf,sizeof(buf));
+                        __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "recev %d , ip_v4: %s \n",i, buf);
+                    }
+                    sprintf(toWrite, "%s %s %s %s %s %d", ip_[0], ip_[1], ip_[2], ip_[3], ip_[4], sockfd);
+                    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "after");
+
+                    get_ip = true;
+                    LOGD("%s", "收到101");
+                    LOGD("%s", toWrite);
+                    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", toWrite) ;
+                    break;
+                case WEB_RESPONSE:
+                    // 上网应答
+                    printf("上网应答：%d, 内容 %s\n", recv_msg.type, recv_msg.data);
+                    LOGD("%s", "收到103");
+                    return NULL;
+                    // break;
+                case HEART_BEAT:
+                    // 心跳包,记录接收时间
+                    s = time(NULL);
+                    printf("%d 收到心跳包 %ld\n", recv_msg.type, s);
+                    LOGD("%s", "收到104");
+                    break;
+                
+                default:
+                    printf("其他 %d %s\n", recv_msg.type, recv_msg.data);
+                    break;
+            }
 
 
+        } 
+        else {
+            memset(recv_buffer, 0, sizeof(recv_buffer));
+            length = recv(sockfd, recv_buffer, MAXBUF, 0); // no &recv_buffer
+            //LOGI("Receive Length: %d", length);
+            memcpy(&recv_msg, recv_buffer, sizeof(recv_msg));
 
-        memset(recv_buffer, 0, sizeof(recv_buffer));
-        length = recv(sockfd, recv_buffer, MAXBUF, 0); // no &recv_buffer
-        //LOGI("Receive Length: %d", length);
-        memcpy(&recv_msg, recv_buffer, sizeof(recv_msg));
+            switch (recv_msg.type) {
+                case IP_RESPONSE:
+                    // IP响应
+                    sscanf(recv_msg.data, "%s%s%s%s%s", ip, router, dns1, dns2, dns3);
+                    sprintf(toWrite, "%s %s %s %s %s %d", ip, router, dns1, dns2, dns3, sockfd);
+                    get_ip = true;
+                    LOGD("%s", "收到101");
+                    LOGD("%s", toWrite);
+                    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", toWrite) ;
+                    break;
+                case WEB_RESPONSE:
+                    // 上网应答
+                    printf("上网应答：%d, 内容 %s\n", recv_msg.type, recv_msg.data);
+                    LOGD("%s", "收到103");
+                    return NULL;
+                    // break;
+                case HEART_BEAT:
+                    // 心跳包,记录接收时间
+                    s = time(NULL);
+                    printf("%d 收到心跳包 %ld\n", recv_msg.type, s);
+                    LOGD("%s", "收到104");
+                    break;
+                
+                default:
+                    printf("其他 %d %s\n", recv_msg.type, recv_msg.data);
+                    break;
+                   
+            }
 
-        switch (recv_msg.type) {
-            case IP_RESPONSE:
-                // IP响应
-                sscanf(recv_msg.data, "%s%s%s%s%s", ip, router, dns1, dns2, dns3);
-
-                sprintf(toWrite, "%s %s %s %s %s %d", ip, router, dns1, dns2, dns3, sockfd);
-                printf("收到IP回应%s\n", toWrite);
-                get_ip = true;
-                LOGD("%s", "收到101");
-                LOGD("%s", toWrite);
-                __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", toWrite) ;
-                break;
-            case WEB_RESPONSE:
-                // 上网应答
-                printf("上网应答：%d, 内容 %s\n", recv_msg.type, recv_msg.data);
-                LOGD("%s", "收到103");
-                return NULL;
-                break;
-            case HEART_BEAT:
-                // 心跳包,记录接收时间
-                s = time(NULL);
-                printf("%d 收到心跳包 %ld\n", recv_msg.type, s);
-                LOGD("%s", "收到104");
-                break;
-
-            default:
-                printf("其他 %d %s\n", recv_msg.type, recv_msg.data);
-                break;
         }
+
         // 间隔一秒
         sleep(1);
     }
+}
+
+
+JNIEXPORT jint JNICALL
+Java_com_example_ipv4_1over_1ipv6_MyVpnService_send_1web_1request(JNIEnv *env, jobject instance,
+                                                                  jcharArray data_, jint length) {
+    jchar *data = env->GetCharArrayElements(data_, NULL);
+
+    // TODO
+    struct Message send_msg;
+    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "准备发送") ;
+
+    createMessage(&send_msg, WEB_REQUEST, (char *) data, length);
+    // 向服务器发送数据
+    if (send(sockfd, &send_msg, sizeof(send_msg), 0) < 0)
+    {
+        close(sockfd);
+        __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "发送失败") ;
+    }
+
+    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "发送成功") ;
+
+
+    env->ReleaseCharArrayElements(data_, data, 0);
 }
 
 extern "C"
@@ -230,13 +342,23 @@ Java_com_example_ipv4_1over_1ipv6_MyVpnService_startVpn(JNIEnv *env, jobject ins
     }
 
     server.sin6_family = AF_INET6;
-    server.sin6_port = htons(VPN_SERVER_TCP_PORT);
-    inet_pton(AF_INET6, VPN_SERVER_IPV6_ADDRESS, &server.sin6_addr);
+    if(test) {
+        server.sin6_port = htons(VPN_SERVER_TCP_PORT_TEST);
+        inet_pton(AF_INET6, VPN_SERVER_IPV6_ADDRESS_TEST, &server.sin6_addr);
+    }
+    else {
+        server.sin6_port = htons(VPN_SERVER_TCP_PORT);
+        inet_pton(AF_INET6, VPN_SERVER_IPV6_ADDRESS, &server.sin6_addr);
+    }
+
 
     int temp;
     if ((temp  = connect(sockfd, (struct sockaddr *) &server, sizeof(server)) )== -1){
-        fprintf(stderr, "can't access server\n" );
+        // fprintf(stderr, "can't access server\n" );
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "can't access server");
+        return -1;
     }
+    connected = true;
 
     LOGD("start");
 
@@ -245,7 +367,7 @@ Java_com_example_ipv4_1over_1ipv6_MyVpnService_startVpn(JNIEnv *env, jobject ins
 
     request_ipv4(sockfd);
 
-    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "hh");
+
 
     pthread_t recv_data;
     pthread_t heart_th;
