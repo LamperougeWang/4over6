@@ -19,6 +19,9 @@ add_library( # Sets the name of the library.
 
              # Provides a relative path to your source file(s).
              src/main/cpp/native-lib.cpp
+             src/main/cpp/error_check.cpp
+             src/main/cpp/unp.h
+
              # src/main/cpp/vpn_service.c
              # src/main/cpp/vpn_service.h
 

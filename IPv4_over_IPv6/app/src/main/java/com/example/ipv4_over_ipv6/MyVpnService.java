@@ -33,9 +33,10 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     private String mServerAddress = "2402:f000:1:4417::900";
     private int mServerPort = 5678;
 
+    private String sockfd;
 
 
-    Builder builder = new Builder();
+
     // 从虚接口读取数据
     private PendingIntent mConfigureIntent;
     // 用于输出调试信息 （Toast）
@@ -181,6 +182,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         String dns2;//="8.8.8.8";
         String dns3;//="202.106.0.20";
 
+
         while(!isGet_ip()) {
             // Log.e("configure", "no ip");
             // sleep(2000);
@@ -191,7 +193,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         String ip_response = ip_info();
         Log.e(TAG, "get " + ip_response);
         String[] parameterArray = ip_response.split(" ");
-        if (parameterArray.length < 5) {
+        if (parameterArray.length <= 5) {
             throw new IllegalStateException("Wrong IP response");
         }
 
@@ -201,6 +203,9 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         dns1 = parameterArray[2];
         dns2 = parameterArray[3];
         dns3 = parameterArray[4];
+        sockfd = parameterArray[5];
+
+        Builder builder = new Builder();
 
         builder.setMtu(1500);
         builder.addAddress(ipv4Addr, 32);
@@ -221,7 +226,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         //  建立一个到代理服务器的网络链接，用于数据传送
         mTunnel = DatagramChannel.open();
         // Protect the mTunnel before connecting to avoid loopback.
-        if (!protect(mTunnel.socket())) {
+        if (!protect(Integer.parseInt(sockfd))) {
             throw new IllegalStateException("Cannot protect the mTunnel");
         }
         // mTunnel.connect(new InetSocketAddress(mServerAddress, Integer.parseInt(mServerPort)));
@@ -249,6 +254,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             Log.e(TAG, "Starting");
             configure();
             mHandler.sendEmptyMessage(R.string.connected);
+            Log.e(TAG, "connected success");
             run_vpn();
 
         } catch (Exception e) {
@@ -311,8 +317,8 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
                     chars[i] = (char) (array[i + packet.position()] & 0xFF);
                 */
 
-                // send_web_requestt(data, length);
-                // Log.e(TAG, "发送完毕");
+                send_web_requestt(data, length);
+                Log.e(TAG, "发送完毕");
                 // Log.e(TAG, data);
                 // Log.e("LEN", String.valueOf(chars.length));
 
