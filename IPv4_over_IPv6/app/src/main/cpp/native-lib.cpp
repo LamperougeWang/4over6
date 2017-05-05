@@ -16,8 +16,8 @@ using namespace std;
 #define VPN_SERVER_IPV6_ADDRESS "2402:f000:1:4417::900"
 #define VPN_SERVER_TCP_PORT 5678
 
-#define VPN_SERVER_IPV6_ADDRESS_TEST "2402:f000:5:8601:2c25:cc2c:caa1:755"
-
+// #define VPN_SERVER_IPV6_ADDRESS_TEST "2402:f000:5:8601:2c25:cc2c:caa1:755"
+#define VPN_SERVER_IPV6_ADDRESS_TEST "2402:f000:5:8601:8e23:e6e3:b7:3110"
 #define VPN_SERVER_TCP_PORT_TEST 6666
 
 // 客户端消息结构体
@@ -34,7 +34,7 @@ struct Msg_Hdr {
 
 struct Msg{
     struct Msg_Hdr hdr;
-    char ipv4_payload[MAX_MESSAGE_LENGTH];
+    char data[MAX_MESSAGE_LENGTH];
 };
 
 
@@ -61,6 +61,8 @@ bool connected = false;
 bool get_ip  = false;
 // 获取到的ip数据
 char toWrite[MAX_MESSAGE_LENGTH];
+// 统计数据
+char packet_log[MAX_MESSAGE_LENGTH];
 // 链接服务器的socket
 int sockfd;
 // 是否超时
@@ -71,14 +73,19 @@ int live_flag = 0;
 time_t s = time(NULL);
 // 虚接口描述符
 int tun_des;
+char  ip_[5][16];
 
 bool test = true;
 
 char * PIPE_DIR;
 
-int byte_length = 0;
-int packet_num = 0;
+// 数据包记录
+int byte_in = 0;
+int byte_out = 0;
 int total_byte = 0;
+int packet_in = 0;
+int packet_out = 0;
+int total_packet = 0;
 bool kill_it = false;
 
 void createMessage(struct Message* msg, char type, char* data, int length)
@@ -114,6 +121,7 @@ void request_ipv4() {
     if (send(sockfd, &send_msg, sizeof(send_msg), 0) < 0)
     {
         // close(sockfd);
+        
         // fprintf(stderr, "发送失败\n");
         LOGE("IPv4请求失败");
     }
@@ -187,9 +195,9 @@ void * send_heart(void *arg) {
     return NULL;
 }
 
-void debugPacket(char * data) {
+int debugPacket(struct Msg *c_msg,int length) {
+    /*
     iphdr* ipv4hdr = (iphdr*)(data);
-    LOGE("get a ipv4 request\n");
     //获取目的地址
 
     struct sockaddr_in dstaddr,srcaddr;
@@ -206,13 +214,39 @@ void debugPacket(char * data) {
     Inet_ntop(AF_INET, &(srcaddr.sin_addr), buf2,sizeof(buf2));
     
     LOGE("from %s to %s\n", buf2, buf);
+    */
+
+    char hex[MAX_MESSAGE_LENGTH * 100];
+    sprintf(hex, "%s", "发送 ");
+    for(int i = 0 ; i < c_msg->hdr.length; ++i) {
+        uint32_t temp = 0;
+        temp = c_msg->data[i];
+        // LOGE("%02x i:%d ",(temp),i);
+        sprintf(hex, "%s %02x", hex, (temp));
+    }
+    LOGE("%d %s", length, hex);
+    LOGE("ready");
+    return 0;
     
+}
+
+char * get_log(){
+
+    if(connected) {
+        sprintf(packet_log, "已发送:%d B/%d 个数据包\n已接收:%dB/%d个数据包\n共出入:%dB/%d个数据包", byte_out, packet_out, byte_in, packet_in, total_byte, total_packet );
+    }
+    else {
+        sprintf(packet_log, "Top Vpn is connecting....");
+    }
+
+    LOGE("%s", packet_log);
+    return packet_log;
 }
 
 void * readTun(void *arg) {
     // 读取虚接口的线程，while循环反复读取
 
-    struct Message send_msg;
+    struct Msg send_msg;
     // 虚接口读出的数据包
     char packet[MAX_MESSAGE_LENGTH];
 
@@ -228,44 +262,73 @@ void * readTun(void *arg) {
         int length = read(tun_des, packet, sizeof(packet));
         if(length > 0) {
             // 封装数据
-            LOGE("read from tunnel %d %s", length, packet);
-            debugPacket(packet);
+            // LOGE("read from tunnel %d %s", length, packet);
+            // debugPacket(packet);
 
-            send_msg.type = WEB_REQUEST;
-            send_msg.length = length;
+            send_msg.hdr.type = WEB_REQUEST;
+            send_msg.hdr.length = length;
             memcpy(send_msg.data, packet, length);
             // 发送IPV6数据包
-            if(send(sockfd, (char*)&send_msg, length + sizeof(struct Msg_Hdr), 0) < 0) {
+            int temp = write(sockfd, (char*)&send_msg, length + sizeof(struct Msg_Hdr));
+            if(temp < 0) {
                 LOGE("102 发送失败");
                 continue;
             }
 
-            LOGE("102 发送成功 %d %d %s", send_msg.type, send_msg.length, send_msg.data);
+
+
+            LOGE("102 发送成功 %d msg.length: %d write_length:%d %d %d %s", send_msg.hdr.type, send_msg.hdr.length, temp, sizeof(struct Msg_Hdr), length + sizeof(struct Msg_Hdr), send_msg.data);
             // 记录读取的长度和次数
-            debugPacket(send_msg.data);
-            byte_length += length;
-            packet_num += 1;
+            debugPacket(&send_msg, send_msg.hdr.length);
+            byte_out += length + 5;
+            packet_out += 1;
             total_byte += length + 5;
+            total_packet += 1;
+
+            get_log();
         }
     }
 }
 
 
 
+int debugPacket_recv(struct Msg *c_msg,int length) {
+
+    char hex[MAX_MESSAGE_LENGTH * 100];
+    sprintf(hex, "%s", "收到 ");
+    for(int i = 0 ; i < c_msg->hdr.length; ++i) {
+        uint32_t temp = 0;
+        temp = c_msg->data[i];
+        // LOGE("%02x i:%d ",(temp),i);
+        sprintf(hex, "%s %02x", hex, (temp));
+    }
+    LOGE("%d %s", length, hex);
+    LOGE("ready");
+    return 0;
+}
+
 
 int write_tun(char* payload, uint32_t len) {
     // 写虚接口，收到信息，写入虚接口
+    byte_in += len + 8;
+    packet_in += 1;
+    total_byte += len + 8;
+    total_packet += 1;
+    // LOGE("before write");
     Write_nByte(tun_des, payload, len);
+    // LOGE("after write");
+    return 0;
 }
 
 
 void recv_ipv4_packet(Msg* msg) {
-    write_tun(msg->ipv4_payload, msg->hdr.length);
+    write_tun(msg->data, msg->hdr.length);
+    debugPacket_recv(msg, msg->hdr.length);
+    LOGE("after");
 }
 
 void recv_ipv4_addr(Msg* msg) {
-    char  ip_[5][16];
-    Ipv4_Request_Reply* reply = (Ipv4_Request_Reply*)msg->ipv4_payload;
+    Ipv4_Request_Reply* reply = (Ipv4_Request_Reply*)msg->data;
     for(int i = 0 ; i < 5; ++i) {
         inet_ntop(AF_INET, &(reply->addr_v4[i]), ip_[i], sizeof(ip_[i]));
     }
@@ -311,7 +374,7 @@ int manage() {
     }
     else if(n == needbs){
         process_payload:
-        char* ipv4_payload = msg.ipv4_payload;
+        char* ipv4_payload = msg.data;
 
         if(msg.hdr.type != 100 && msg.hdr.type != 104) {
             n = read(fd, ipv4_payload, msg.hdr.length);
@@ -335,6 +398,7 @@ int manage() {
             case 103:
                 LOGE("get 103");
                 recv_ipv4_packet(&msg);
+                LOGE("manage all");
                 break;
             case 104:
                 // 心跳包,记录接收时间
@@ -452,6 +516,27 @@ int kill_myself() {
         close(sockfd);
     }
     return 0;
+}
+extern "C"
+
+JNIEXPORT jstring JNICALL
+Java_com_example_ipv4_1over_1ipv6_MainActivity_get_1info(JNIEnv *env, jobject instance) {
+
+    // TODO
+
+
+    return env->NewStringUTF(get_log());
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_example_ipv4_1over_1ipv6_MyVpnService_get_1info(JNIEnv *env, jobject instance) {
+
+    // TODO
+
+    // get_log();
+
+    return env->NewStringUTF(get_log());
 }
 
 extern "C"

@@ -14,66 +14,67 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:orientation="vertical"
     android:padding="15dp"
+
     tools:layout_editor_absoluteY="8dp"
     tools:layout_editor_absoluteX="8dp">
 
         <TextView
             style="@style/item"
+
             android:text="@string/address" />
 
         <EditText
             android:id="@+id/address"
             style="@style/item"
+
             android:text="@string/server_ip" />
 
         <TextView
             style="@style/item"
+
             android:text="@string/port" />
 
         <EditText
             android:id="@+id/port"
             style="@style/item"
+
             android:text="@string/server_port" />
 
         <TextView
-            android:text="@string/c_log"
-            style="@style/item"/>
-
-        <EditText
-            android:id="@+id/sample_text"
             style="@style/item"
-            android:text="@string/hello_world" />
 
-        <TextView
-            style="@style/item"
             android:text="@string/local_address" />
 
         <EditText
             android:id="@+id/local_address"
             style="@style/item"
-            android:editable="false"
+
             android:text="@string/local_ip" />
 
         <Button
             android:id="@+id/startVPN"
             style="@style/item"
+            android:layout_margin="10dp"
             android:text="@string/connect" />
 
         <Button
             android:id="@+id/stopVPN"
-            android:padding="4dp"
+            android:layout_margin="10dp"
             style="@style/item"
             android:text="@string/disconnect" />
 
 
-        <EditText
-            android:id="@+id/tvLog"
+        <TextView
+            android:id="@+id/log"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Log Cat"
+            android:lineSpacingExtra="10dp"
+            android:layout_margin="10dp"
+            android:text="@string/welcome"
             />
 
-
 </LinearLayout>
+
+
 
 </ScrollView>

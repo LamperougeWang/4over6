@@ -9,6 +9,7 @@ import android.os.Message;
 import android.os.ParcelFileDescriptor;
 import android.os.StrictMode;
 import android.util.Log;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.FileInputStream;
@@ -50,15 +51,9 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     private String PIPE_DIR;
     private String ROOT_DIR;
 
-
-    private FileInputStream mInputStream;
-    private FileOutputStream mOutputStream;
-
+    // 本线程
     private Thread mThread;
-    private Thread cThread;
 
-    private DatagramChannel mTunnel = null;
-    private static final int PACK_SIZE = 32767 * 2;
 
     private boolean start = false;
 
@@ -80,6 +75,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     public native int send_web_requestt(String data, int length);
     public native int send_fd(int fd, String file);
     public native int kill();
+
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -131,27 +127,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         if (mThread != null) {
             mThread.interrupt();
         }
-        if (cThread != null) {
-            kill();
-            cThread.interrupt();
-        }
-        try {
-            if (mInputStream != null) {
-                mInputStream.close();
-            }
-            if (mOutputStream != null) {
-                mOutputStream.close();
-            }
-
-        } catch (IOException ie) {
-            ie.printStackTrace();
-        }
         mThread = null;
-        // mInterface = null;
-        // mInputStream = null;
-        // mOutputStream = null;
-        // mTunnel = null;
-        // cThread = null;
     }
 
     @Override
@@ -276,6 +252,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             // mHandler.sendEmptyMessage(R.string.connected);
             Log.e(TAG, "前台已完成");
             // run_vpn();
+            // flush();
             Log.e(TAG, "end?");
 
         } catch (Exception e) {
@@ -286,6 +263,8 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
 
         }
     }
+
+
 
     private boolean run_vpn() throws IOException, InterruptedException {
         // ByteBuffer packet = ByteBuffer.allocate(PACK_SIZE);

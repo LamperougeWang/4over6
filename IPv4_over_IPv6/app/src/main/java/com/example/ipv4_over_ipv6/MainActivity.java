@@ -44,6 +44,8 @@ public class MainActivity extends AppCompatActivity {
 
     // 后台VPN主线程
     public native int startVpn();
+    public native String get_info();
+
 
     final private String TAG = "Main Activity";
 
@@ -58,7 +60,32 @@ public class MainActivity extends AppCompatActivity {
     EditText addr;
     EditText port;
 
+    private static final int CONNECTING = 0;
+    private static final int CONNECTED  = 1;
+    private static final int FLUSH   = 2;
+    private static final int DISCONNECTED = 3;
 
+    private Handler mHandler = new Handler() {
+        public void handleMessage(Message msg) { // in main(UI) thread
+            TextView editText = (TextView) findViewById(R.id.log);
+            switch (msg.what) {
+                case CONNECTING:
+                    editText.setText("Top VPN is connecting");
+                    break;
+                case CONNECTED:
+                    editText.setText("Connected");
+                    break;
+                case DISCONNECTED:
+                    editText.setText("Welcome");
+                    break;
+                case FLUSH:
+                    editText.setText(String.valueOf(msg.obj));
+                    break;
+                default:
+                    break;
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -125,6 +152,8 @@ public class MainActivity extends AppCompatActivity {
                     cThread = new Thread(jni_back);
                     cThread.start();
 
+                    flush();
+
 
                     Log.e("click", "click");
 
@@ -169,6 +198,30 @@ public class MainActivity extends AppCompatActivity {
             // start = false;
 
         }
+    }
+
+    private void flush() {
+
+        Runnable jni_back = new Runnable() {
+            @Override
+            public void run() {
+                while (true) {
+                    Message message = new Message();
+                    message.what = FLUSH;
+                    message.obj  = get_info();
+                    mHandler.sendMessage(message);
+
+                    try {
+                        sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        };
+
+        Thread flushThread = new Thread(jni_back);
+        flushThread.start();
     }
 
     /**
