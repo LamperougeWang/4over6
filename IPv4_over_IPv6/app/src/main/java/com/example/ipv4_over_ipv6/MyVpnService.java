@@ -37,6 +37,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
 
 
 
+
     // 从虚接口读取数据
     private PendingIntent mConfigureIntent;
     // 用于输出调试信息 （Toast）
@@ -44,6 +45,12 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
 
     // 用于从虚接口读取数据
     private ParcelFileDescriptor mInterface;
+    // 虚接口描述符
+    private int fd;
+    private String PIPE_DIR;
+    private String ROOT_DIR;
+
+
     private FileInputStream mInputStream;
     private FileOutputStream mOutputStream;
 
@@ -53,6 +60,8 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     private DatagramChannel mTunnel = null;
     private static final int PACK_SIZE = 32767 * 2;
 
+    private boolean start = false;
+
 
 
     // Used to load the 'native-lib' library on application startup.
@@ -61,8 +70,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     }
 
 
-    // 后台VPN主线程
-    public native int startVpn();
+
     // 是否已经获得IP
     public native boolean isGet_ip();
     // 获得的IP信息
@@ -70,19 +78,36 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     // 发送数据
     public native int send_web_request(char [] data, int length);
     public native int send_web_requestt(String data, int length);
-
-    @Override
-    public void onCreate() {
-        super.onCreate();
-    }
+    public native int send_fd(int fd, String file);
+    public native int kill();
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+
+        Log.e(TAG, "进入startcommand");
+
         // The handler is only used to show messages.
         if (mHandler == null) {
             mHandler = new Handler(this);
         }
         mHandler.sendEmptyMessage(R.string.debug);
+
+        /*
+            try{
+                ROOT_DIR = intent.getStringExtra("ROOT");
+                PIPE_DIR = ROOT_DIR + "/tunnel";
+                mServerAddress = intent.getStringExtra("SERVER_ADDR");
+                mServerPort = Integer.parseInt(intent.getStringExtra("SERVER_PORT"));
+            } catch (Exception e) {
+                e.printStackTrace();
+                Log.e("what?", "what");
+                Log.e(TAG, e.toString());
+            }
+        */
+
+
+
+
 
 
 
@@ -109,13 +134,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         // Start a new session by creating a new thread.
         mThread = new Thread(this, "Top_VPN_Thread");
         mThread.start();
-        cThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                startVpn();
-            }
-        });
-        cThread.start();
+
         Log.e("create", "create success");
         return START_STICKY;
 
@@ -138,6 +157,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             mThread.interrupt();
         }
         if (cThread != null) {
+            kill();
             cThread.interrupt();
         }
         try {
@@ -147,19 +167,16 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             if (mOutputStream != null) {
                 mOutputStream.close();
             }
-            if (mInterface != null) {
-                mInterface.close();
-            }
 
         } catch (IOException ie) {
             ie.printStackTrace();
         }
         mThread = null;
-        mInterface = null;
-        mInputStream = null;
-        mOutputStream = null;
-        mTunnel = null;
-        cThread = null;
+        // mInterface = null;
+        // mInputStream = null;
+        // mOutputStream = null;
+        // mTunnel = null;
+        // cThread = null;
     }
 
     @Override
@@ -174,7 +191,6 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     private void configure() throws IOException, InterruptedException {
 
         //  使用VPN Builder创建一个VPN接口
-        // VpnService.Builder builder = new VpnService.Builder();
 
         String ipv4Addr;// = "13.8.0.2";
         String router;//="0.0.0.0";
@@ -182,22 +198,20 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         String dns2;//="8.8.8.8";
         String dns3;//="202.106.0.20";
 
-
+        // 2. 开始读取管道，首先读取IP信息管道，判断是否有后台传送来的IP等信息
+        // 3. 假如没有，下次循环继续读取；
         while(!isGet_ip()) {
-            // Log.e("configure", "no ip");
-            // sleep(2000);
         }
 
-        Log.e(TAG, "get ip");
-
+        // 4. 有IP信息，就启用安卓VPN服务
         String ip_response = ip_info();
-        Log.e(TAG, "get " + ip_response);
+        Log.e(TAG, "GET IP " + ip_response);
         String[] parameterArray = ip_response.split(" ");
         if (parameterArray.length <= 5) {
             throw new IllegalStateException("Wrong IP response");
         }
 
-        // 从服务器端读到的数据
+        // 从服务器端读到的IP数据
         ipv4Addr = parameterArray[0];
         router = parameterArray[1];
         dns1 = parameterArray[2];
@@ -205,32 +219,62 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         dns3 = parameterArray[4];
         sockfd = parameterArray[5];
 
+
+        Log.e(TAG, ipv4Addr + " " + router + " " + dns1 + " " + dns2 + " " + dns3 + " " + sockfd);
+
         Builder builder = new Builder();
 
         builder.setMtu(1500);
         builder.addAddress(ipv4Addr, 32);
-
-
         builder.addRoute(router, 0); // router is "0.0.0.0" by default
-
         builder.addDnsServer(dns1);
         builder.addDnsServer(dns2);
         builder.addDnsServer(dns3);
         builder.setSession("Top Vpn");
+        Log.e(TAG, "configure: before es");
 
-        mInterface = builder.establish();
+        try {
+            mInterface.close();
+            // mInterface = builder.establish();
+        }catch (Exception e) {
+            e.printStackTrace();
+            Log.e(TAG, "error" + e.toString());
+            // return;
+        }
+
+        try {
+            // mInterface.close();
+            mInterface = builder.establish();
+        }catch (Exception e) {
+            e.printStackTrace();
+            Log.e(TAG,"error: " + e.toString());
+            return;
+        }
+
+        // 5. 把获取到的安卓虚接口描述符写入管道传到后台
+        Log.e(TAG, "configure: after es");
+        fd = mInterface.getFd();
+        Log.e(TAG, "configure: after getfd");
+        Log.e(TAG, PIPE_DIR);
+        Log.e(TAG,":虚接口:" + String.valueOf(fd));
+        send_fd(fd, PIPE_DIR);
+        Log.e(TAG, "after send");
         // Packets received need to be written tothis output stream.
-        mInputStream = new FileInputStream(mInterface.getFileDescriptor());
-        mOutputStream = new FileOutputStream(mInterface.getFileDescriptor());
+        // Java读写虚接口
+        // mInputStream = new FileInputStream(mInterface.getFileDescriptor());
+        // mOutputStream = new FileOutputStream(mInterface.getFileDescriptor());
 
         //  建立一个到代理服务器的网络链接，用于数据传送
-        mTunnel = DatagramChannel.open();
+        // mTunnel = DatagramChannel.open();
         // Protect the mTunnel before connecting to avoid loopback.
         if (!protect(Integer.parseInt(sockfd))) {
             throw new IllegalStateException("Cannot protect the mTunnel");
         }
         // mTunnel.connect(new InetSocketAddress(mServerAddress, Integer.parseInt(mServerPort)));
-        mTunnel.configureBlocking(false);
+        // mTunnel.configureBlocking(false);
+
+        start = true;
+
         Log.e(TAG, "configure: end");
     }
 
@@ -248,27 +292,32 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     @Override
     public synchronized void run() {
 
-        mHandler.sendEmptyMessage(R.string.connecting);
+        // mHandler.sendEmptyMessage(R.string.connecting);
 
         try {
             Log.e(TAG, "Starting");
             configure();
-            mHandler.sendEmptyMessage(R.string.connected);
-            Log.e(TAG, "connected success");
+            // mHandler.sendEmptyMessage(R.string.connected);
+            Log.e(TAG, "前台已完成");
             run_vpn();
+            Log.e(TAG, "end?");
 
         } catch (Exception e) {
+            // stopVPNService();
             Log.e(TAG, "Got " + e.toString());
         } finally {
-            stopVPNService();
-            mHandler.sendEmptyMessage(R.string.disconnected);
+            // mHandler.sendEmptyMessage(R.string.disconnected);
 
         }
     }
 
-    private boolean run_vpn() throws IOException {
-        ByteBuffer packet = ByteBuffer.allocate(PACK_SIZE);
-
+    private boolean run_vpn() throws IOException, InterruptedException {
+        // ByteBuffer packet = ByteBuffer.allocate(PACK_SIZE);
+        Log.e(TAG, "前台定时读取");
+        while (start) {
+            // Log.e(TAG, "前台定时读取");
+            // sleep(1000);
+        }
         //  一个线程用于接收代理传回的数据，一个线程用于发送手机发出的数据到代理服务器
         /*
         Thread recvThread = new Thread(new Runnable() {
@@ -302,6 +351,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         */
 
         // 读取本机的访问信号
+        /*
         while (true) {
 
             int length = mInputStream.read(packet.array());
@@ -311,13 +361,8 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
                 // NetworkUtils.logIPPack(TAG, packet, length);
                 byte[] array = packet.array();
                 String data = new String(array);
-                /*
-                char[] chars = new char[packet.remaining()];
-                for (int i = 0; i < chars.length; i++)
-                    chars[i] = (char) (array[i + packet.position()] & 0xFF);
-                */
 
-                send_web_requestt(data, length);
+                // send_web_requestt(data, length);
                 Log.e(TAG, "发送完毕");
                 // Log.e(TAG, data);
                 // Log.e("LEN", String.valueOf(chars.length));
@@ -328,8 +373,11 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
                 // mTunnel.write(packet);
                 packet.clear();
             }
-        }
 
+        }
+        */
+
+        return false;
     }
 
 
@@ -411,13 +459,5 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
 
         status += "   Destination IP:" + destIP;
 
-    }
-
-    public class VPNServiceBinder extends Binder {
-
-        public MyVpnService getService() {
-
-            return MyVpnService.this;
-        }
     }
 }

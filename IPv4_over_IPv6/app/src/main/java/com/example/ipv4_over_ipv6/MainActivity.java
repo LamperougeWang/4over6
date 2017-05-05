@@ -37,32 +37,38 @@ import static java.lang.Thread.sleep;
 public class MainActivity extends AppCompatActivity {
 
     // Used to load the 'native-lib' library on application startup.
-    /*
+
     static {
         System.loadLibrary("native-lib");
     }
-    */
+
+    // 后台VPN主线程
+    public native int startVpn();
+
+    final private String TAG = "Main Activity";
 
     private boolean start = false;
     private MyVpnService mVPNService;
+    // c后台线程
+    private Thread cThread;
 
-    private ServiceConnection mServiceConnection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            mVPNService = ((MyVpnService.VPNServiceBinder) service).getService();
-        }
+    // private String server_addr;
+    // private String server_port;
 
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
+    EditText addr;
+    EditText port;
 
-        }
-    };
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        addr = (EditText) findViewById(R.id.address);
+        port = (EditText) findViewById(R.id.port);
+
+        Log.e(TAG, getApplicationContext().getFilesDir().getPath());
 
         // 检查网络连接
         Toast toast = Toast.makeText(getApplicationContext(),
@@ -108,7 +114,18 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 start = !start;
-                if(start) {
+
+                    Runnable jni_back = new Runnable() {
+                        @Override
+                        public void run() {
+                            startVpn();
+                        }
+                    };
+
+                    cThread = new Thread(jni_back);
+                    cThread.start();
+
+
                     // 客户程序一般需要先调用VpnService.prepare函数
                     // 询问用户权限，检查当前是否已经有VPN连接，如果有判断是否是本程序创建的
                     Intent intent = VpnService.prepare(getApplicationContext());
@@ -120,13 +137,7 @@ public class MainActivity extends AppCompatActivity {
                     } else {
                         onActivityResult(0, RESULT_OK, null);
                     }
-                }
-                else {
-                    mVPNService.stopVPNService();
-                    // Intent intent = new Intent(this, MyVpnService.class);
-                    // stopService(intent);
 
-                }
 
             }
         });
@@ -141,13 +152,16 @@ public class MainActivity extends AppCompatActivity {
         if (resultCode == RESULT_OK) {
             // 如果返回结果是OK的，也就是用户同意建立VPN连接，则将你写的，继承自VpnService类的服务启动起来就行了。
             Intent intent = new Intent(this, MyVpnService.class);
+            intent.putExtra("ROOT", getApplicationContext().getFilesDir().getPath());
+            intent.putExtra("SERVER_ADDR", addr.getText().toString());
+            intent.putExtra("SERVER_PORT", port.getText().toString());
             startService(intent);
             /*
             if(start) {
                 bindService(intent, mServiceConnection, Context.BIND_AUTO_CREATE);
             }
             */
-            start = false;
+            // start = false;
 
         }
     }
