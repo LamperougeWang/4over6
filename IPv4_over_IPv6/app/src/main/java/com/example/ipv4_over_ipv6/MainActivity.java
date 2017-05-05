@@ -126,6 +126,9 @@ public class MainActivity extends AppCompatActivity {
                     cThread.start();
 
 
+                    Log.e("click", "click");
+
+
                     // 客户程序一般需要先调用VpnService.prepare函数
                     // 询问用户权限，检查当前是否已经有VPN连接，如果有判断是否是本程序创建的
                     Intent intent = VpnService.prepare(getApplicationContext());
@@ -133,8 +136,10 @@ public class MainActivity extends AppCompatActivity {
                     Log.e("Click", "Top VPN 正在连接");
                     if (intent != null) {
                         // 没有VPN连接，或者不是本程序创建的
+                        Log.e(TAG, "NULL");
                         startActivityForResult(intent, 0);
                     } else {
+                        Log.e(TAG, "NOT NULL");
                         onActivityResult(0, RESULT_OK, null);
                     }
 

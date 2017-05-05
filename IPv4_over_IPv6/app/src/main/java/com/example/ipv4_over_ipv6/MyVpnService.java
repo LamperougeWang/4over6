@@ -92,7 +92,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         }
         mHandler.sendEmptyMessage(R.string.debug);
 
-        /*
+
             try{
                 ROOT_DIR = intent.getStringExtra("ROOT");
                 PIPE_DIR = ROOT_DIR + "/tunnel";
@@ -103,39 +103,14 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
                 Log.e("what?", "what");
                 Log.e(TAG, e.toString());
             }
-        */
-
-
-
-
-
-
-
-        // Stop the previous session by interrupting the thread.
-        /*
-        if (mThread != null) {
-            mThread.interrupt();
-        }
-
-        if(cThread != null) {
-            cThread.interrupt();
-        }
-
-        if (mInterface != null) {
-            try {
-                mInterface.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-        */
-        stopVPNService();
+        // stopVPNService();
 
         // Start a new session by creating a new thread.
         mThread = new Thread(this, "Top_VPN_Thread");
         mThread.start();
 
         Log.e("create", "create success");
+
         return START_STICKY;
 
     }
@@ -233,7 +208,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         builder.setSession("Top Vpn");
         Log.e(TAG, "configure: before es");
 
-        try {
+        /*try {
             mInterface.close();
             // mInterface = builder.establish();
         }catch (Exception e) {
@@ -241,13 +216,14 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             Log.e(TAG, "error" + e.toString());
             // return;
         }
+        */
 
         try {
             // mInterface.close();
             mInterface = builder.establish();
         }catch (Exception e) {
             e.printStackTrace();
-            Log.e(TAG,"error: " + e.toString());
+            Log.e(TAG,"Fatal error: " + e.toString());
             return;
         }
 
@@ -255,7 +231,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         Log.e(TAG, "configure: after es");
         fd = mInterface.getFd();
         Log.e(TAG, "configure: after getfd");
-        Log.e(TAG, PIPE_DIR);
+        Log.e(TAG, "e" + PIPE_DIR);
         Log.e(TAG,":虚接口:" + String.valueOf(fd));
         send_fd(fd, PIPE_DIR);
         Log.e(TAG, "after send");
@@ -299,7 +275,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             configure();
             // mHandler.sendEmptyMessage(R.string.connected);
             Log.e(TAG, "前台已完成");
-            run_vpn();
+            // run_vpn();
             Log.e(TAG, "end?");
 
         } catch (Exception e) {
