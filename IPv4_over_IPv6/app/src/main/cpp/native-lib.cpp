@@ -71,6 +71,8 @@ bool over_time = false;
 int live_flag = 0;
 //time_t是long类型，精确到秒，是当前时间和1970年1月1日零点时间的差
 time_t s = time(NULL);
+time_t start_time;
+
 // 虚接口描述符
 int tun_des;
 char  ip_[5][16];
@@ -87,6 +89,11 @@ int packet_in = 0;
 int packet_out = 0;
 int total_packet = 0;
 bool kill_it = false;
+
+// 连接信息
+char server_ip[MAX_MESSAGE_LENGTH];
+char ipv4[MAX_MESSAGE_LENGTH];
+
 
 void createMessage(struct Message* msg, char type, char* data, int length)
 {
@@ -161,10 +168,10 @@ void request_ipv4() {
 
 
 void * send_heart(void *arg) {
-    struct Message send_msg;
+    struct Msg send_msg;
 
-    send_msg.length = 0;
-    send_msg.type = HEART_BEAT;
+    send_msg.hdr.length = 0;
+    send_msg.hdr.type = HEART_BEAT;
     memset(&(send_msg.data), 0, sizeof(send_msg.data));
     // 创建发送数据包
     /*
@@ -178,7 +185,7 @@ void * send_heart(void *arg) {
         // printf("发送心跳包%ld\n", time(NULL));
 
         // 向服务器发送数据
-        if (send(sockfd, &send_msg, sizeof(send_msg), 0) < 0)
+        if (send(sockfd, &send_msg, sizeof(struct Msg_Hdr), 0) < 0)
         {
             // close(sockfd);
             LOGE("发送失败\n");
@@ -233,7 +240,20 @@ int debugPacket(struct Msg *c_msg,int length) {
 char * get_log(){
 
     if(connected) {
-        sprintf(packet_log, "已发送:%d B/%d 个数据包\n已接收:%dB/%d个数据包\n共出入:%dB/%d个数据包", byte_out, packet_out, byte_in, packet_in, total_byte, total_packet );
+
+        // 已运行的时间
+        time_t run_time;
+        time(&run_time);
+        struct tm * start_info;
+        struct tm * run_info;
+        long t = run_time - start_time;
+        run_info = gmtime(&t);
+        // VPN开启时间
+        start_info = localtime(& start_time);
+
+        sprintf(packet_log, "已运行:%02d:%02d:%02d\n", run_info->tm_hour, run_info->tm_min, run_info->tm_sec);
+
+        sprintf(packet_log, "%s已发送:%d B/%d 个数据包\n已接收:%dB/%d个数据包\n共出入:%dB/%d个数据包", packet_log, byte_out, packet_out, byte_in, packet_in, total_byte, total_packet );
     }
     else {
         sprintf(packet_log, "Top Vpn is connecting....");
@@ -403,7 +423,7 @@ int manage() {
             case 104:
                 // 心跳包,记录接收时间
                 s = time(NULL);
-                LOGE("%s %ld", "收到104", s);
+                LOGE("%s %ld", "收到心跳包104", s);
                 break;
             default:
                 LOGE("get %d", msg.hdr.type);
@@ -619,7 +639,7 @@ Java_com_example_ipv4_1over_1ipv6_MainActivity_startVpn(JNIEnv *env, jobject ins
         return 1;
     }
 
-    // ret = pthread_create(&heart_th, NULL, send_heart, NULL);
+    ret = pthread_create(&heart_th, NULL, send_heart, NULL);
     if(ret) {
         LOGE("Create pthread error!");
         return 1;
@@ -629,7 +649,7 @@ Java_com_example_ipv4_1over_1ipv6_MainActivity_startVpn(JNIEnv *env, jobject ins
     // pthread_create(&web_th, NULL, send_web_request, NULL);
     LOGE("wait thread");
     // pthread_join(recv_data, NULL);
-    // pthread_join(heart_th, NULL);
+    pthread_join(heart_th, NULL);
     pthread_join(new_data, NULL);
     // pthread_join(web_th, NULL);
 
@@ -674,6 +694,7 @@ Java_com_example_ipv4_1over_1ipv6_MyVpnService_send_1fd(JNIEnv *env, jobject ins
 
     // 至此创建完成
     connected = true;
+    time(&start_time);
 
     // 开启线程，读写虚接口
     pthread_t th_readTun;
