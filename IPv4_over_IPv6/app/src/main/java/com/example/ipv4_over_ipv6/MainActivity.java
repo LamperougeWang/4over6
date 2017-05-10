@@ -58,14 +58,14 @@ public class MainActivity extends AppCompatActivity {
     public boolean start = false;
 
     // 监听两个按钮
-    Button stopButton =  (Button) findViewById(R.id.stopVPN);
-    Button startButton = (Button)  findViewById(R.id.stopVPN);
+    public Button stopVpn;
+    public Button startVPN;
     // 显示流量信息
-    TextView editText = (TextView) findViewById(R.id.log);
+    public TextView editText;
 
-    EditText addr = (EditText) findViewById(R.id.address);
-    EditText port = (EditText) findViewById(R.id.port);
-    EditText local_ipv6 = (EditText) findViewById(R.id.local_address);
+    public EditText addr;
+    public EditText port;
+    public EditText local_ipv6;
 
     private String mServerAddress = "2402:f000:5:8601:942c:3463:c810:6147";
     private String mServerPort = "6666";
@@ -76,6 +76,14 @@ public class MainActivity extends AppCompatActivity {
     private static final int CONNECTED  = 1;
     private static final int FLUSH   = 2;
     private static final int DISCONNECTED = 3;
+
+    public void setStart() {
+
+    }
+
+    public void setStop() {
+
+    }
 
     private Handler mHandler = new Handler() {
         public void handleMessage(Message msg) { // in main(UI) thread
@@ -120,6 +128,15 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        stopVpn =  (Button) findViewById(R.id.stopVPN);
+        startVPN = (Button)  findViewById(R.id.startVPN);
+        // 显示流量信息
+        editText = (TextView) findViewById(R.id.log);
+
+        addr = (EditText) findViewById(R.id.address);
+        port = (EditText) findViewById(R.id.port);
+        local_ipv6 = (EditText) findViewById(R.id.local_address);
+
         // 传递服务器IP，端口等
         final SharedPreferences prefs = getSharedPreferences(Prefs.NAME, MODE_PRIVATE);
         addr.setText(prefs.getString(Prefs.SERVER_ADDRESS, mServerAddress));
@@ -130,21 +147,18 @@ public class MainActivity extends AppCompatActivity {
 
         // 检查网络连接
         Toast toast = Toast.makeText(getApplicationContext(),
-                "欢迎使用Top Vpn\n正在检查网络...", Toast.LENGTH_LONG);
+                "Welcome\n\nCheck Net...", Toast.LENGTH_LONG);
         toast.setGravity(Gravity.CENTER, 0, 0);
         toast.show();
 
 
-        findViewById(R.id.stopVPN).setOnClickListener(new View.OnClickListener() {
+        stopVpn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 // 关闭VPN
                 startService(getServiceIntent().setAction(MyVpnService.ACTION_DISCONNECT));
             }
         });
-
-
-
 
         final Handler net_handler = new Handler();
         Runnable runnable=new Runnable() {
@@ -153,7 +167,7 @@ public class MainActivity extends AppCompatActivity {
                 // TODO Auto-generated method stub
                 if (checkNet(getApplicationContext())) {
                     Log.d("Net", "网络已连接");
-                    String iPv6_addr = getIPv6Address();
+                    String iPv6_addr = getIPv6Address(getApplicationContext());
                     if (iPv6_addr != null) {
                         // Toast.makeText(getApplicationContext(), "IPv6 网络访问正常", Toast.LENGTH_SHORT).show();
                         allow = true;
@@ -166,6 +180,9 @@ public class MainActivity extends AppCompatActivity {
                         local_ipv6_addr = "无IPv6访问权限，请检查网络";
                     }
                 }
+                else {
+                    allow = false;
+                }
                 //要做的事情
                 net_handler.postDelayed(this, 2000);
             }
@@ -174,13 +191,11 @@ public class MainActivity extends AppCompatActivity {
         net_handler.postDelayed(runnable, 2000);//每两秒检查一次网络runnable.
 
         // 点击按钮连接VPN
-        final Button startVPN;
-        startVPN = (Button) findViewById(R.id.startVPN);
         startVPN.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
 
-                if(! allow) {
+                if(!allow) {
                     Toast.makeText(getApplicationContext(), "无IPV6网络，请联网后重试...", Toast.LENGTH_SHORT).show();
                 }
                 else {
@@ -205,7 +220,7 @@ public class MainActivity extends AppCompatActivity {
                     // 询问用户权限，检查当前是否已经有VPN连接，如果有判断是否是本程序创建的
                     Intent intent = VpnService.prepare(getApplicationContext());
                     Toast.makeText(getApplicationContext(), "Top VPN is connecting...", Toast.LENGTH_SHORT).show();
-                    // Log.e("Click", "Top VPN 正在连接");
+                    Log.e("Click", "Top VPN 正在连接");
                     if (intent != null) {
                         // 没有VPN连接，或者不是本程序创建的
                         Log.e(TAG, "NOT NULL");
@@ -215,13 +230,9 @@ public class MainActivity extends AppCompatActivity {
                         onActivityResult(0, RESULT_OK, null);
                     }
                 }
-
             }
         });
 
-        // Example of a call to a native method
-        // TextView tv = (TextView) findViewById(R.id.sample_text);
-        // tv.setText(stringFromJNI());
     }
 
 

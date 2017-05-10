@@ -94,6 +94,8 @@ bool kill_it = false;
 char server_ip[MAX_MESSAGE_LENGTH];
 char ipv4[MAX_MESSAGE_LENGTH];
 
+bool server_ready = false;
+
 char *SERVER_IPV6;
 int SERVER_PORT = 6666;
 
@@ -117,6 +119,15 @@ void createMessage(struct Message* msg, char type, char* data, int length)
     }
 }
 
+int kill_myself() {
+    LOGE("Kill Back C");
+    connected = false;
+    if(sockfd) {
+        Close(sockfd);
+    }
+    return 0;
+}
+
 void request_ipv4() {
     struct Message send_msg;
 
@@ -137,35 +148,6 @@ void request_ipv4() {
     }
 
     LOGE("%s", "IPV4地址请求");
-
-    struct Msg msg;
-
-    /*if(test) {
-        ssize_t needbs = sizeof(struct Msg_Hdr);
-
-        memset(&msg, 0, sizeof(struct Msg));
-        if(read(sockfd, &msg, needbs) < 0) {
-            LOGE("%s", "can't read header");
-        }
-
-        if(msg.hdr.type == IP_RESPONSE) {
-            if(read(sockfd, msg.ipv4_payload, msg.hdr.length) < 0) {
-                __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", "can't read 101 reply payload") ;
-            }
-            char  ip_[5][16];
-            Ipv4_Request_Reply* reply = (Ipv4_Request_Reply*)msg.ipv4_payload;
-            for(int i = 0 ; i < 5; ++i) {
-                char buf[16];
-                inet_ntop(AF_INET, &(reply->addr_v4[i]), ip_[i], sizeof(ip_[i]));
-            }
-            
-            sprintf(toWrite, "%s %s %s %s %s %d", ip_[0], ip_[1], ip_[2], ip_[3], ip_[4], sockfd);
-            get_ip = true;
-
-            LOGE("收到 %s", toWrite);
-        }
-
-    }*/
 
 }
 
@@ -206,25 +188,6 @@ void * send_heart(void *arg) {
 }
 
 int debugPacket(struct Msg *c_msg,int length) {
-    /*
-    iphdr* ipv4hdr = (iphdr*)(data);
-    //获取目的地址
-
-    struct sockaddr_in dstaddr,srcaddr;
-    dstaddr.sin_addr.s_addr = ipv4hdr->daddr;
-    dstaddr.sin_family = AF_INET;
-    socklen_t addr_len = sizeof(struct sockaddr_in);
-
-    srcaddr.sin_addr.s_addr = ipv4hdr->saddr;
-    srcaddr.sin_family = AF_INET;
-
-    // ssize_t n = sendto(rawfd, c_msg->ipv4_payload, c_msg->hdr.length, 0, (SA*)&dstaddr, addr_len);
-    char buf[512],buf2[512];
-    Inet_ntop(AF_INET, &(dstaddr.sin_addr), buf,sizeof(buf));
-    Inet_ntop(AF_INET, &(srcaddr.sin_addr), buf2,sizeof(buf2));
-    
-    LOGE("from %s to %s\n", buf2, buf);
-    */
 
     char hex[MAX_MESSAGE_LENGTH * 100];
     sprintf(hex, "%s", "发送 ");
@@ -293,6 +256,11 @@ void * readTun(void *arg) {
             memcpy(send_msg.data, packet, length);
             // 发送IPV6数据包
             int temp = write(sockfd, (char*)&send_msg, length + sizeof(struct Msg_Hdr));
+            if(temp == 0) {
+                kill_myself();
+                LOGE("服务器关闭，C后台关闭");
+                continue;
+            }
             if(temp < 0) {
                 LOGE("102 发送失败");
                 continue;
@@ -379,6 +347,7 @@ int manage() {
         over_time = true;
         connected = false;
         // close(sockfd);
+        kill_myself();
         LOGE("超时");
         return -1;
     }
@@ -386,13 +355,15 @@ int manage() {
 
     n = read(fd, &msg, needbs);
     if(n < 0) {
-        fprintf(stderr, "read sockfd %d error: %s \n",fd,strerror(errno));
-        Close(fd);
+        LOGE("read sockfd %d error: %s \n",fd,strerror(errno));
+        kill_myself();
+        // Close(fd);
         return -1;
     }
     else if(n == 0) {
-        fprintf(stderr, "recv 0 byte from server, close sockfd %d \n",fd);
-        Close(fd);
+        LOGE("recv 0 byte from server, close sockfd %d \n",fd);
+        // Close(fd);
+        kill_myself();
         return -1;
     }
     else if(n == needbs){
@@ -404,7 +375,8 @@ int manage() {
             if(n != msg.hdr.length) {
                 fprintf(stderr, "read payload error, need %d byte, read %d byte\n",msg.hdr.length, n);
                 if(n <= 0) {
-                    Close(fd);
+                    // Close(fd);
+                    kill_myself();
                     // connected = false;
                     return -1;
                 }
@@ -482,6 +454,7 @@ void * manage_data(void *arg) {
             connected = false;
             // close(sockfd);
             LOGE("超时");
+            kill_myself();
             return NULL;
         }
 
@@ -532,15 +505,6 @@ void * manage_data(void *arg) {
 }
 
 
-int kill_myself() {
-    LOGE("Kill Back C");
-    connected = false;
-    if(sockfd) {
-        Close(sockfd);
-    }
-    return 0;
-}
-
 extern "C"
 JNIEXPORT jint JNICALL
 Java_com_example_ipv4_1over_1ipv6_MyVpnService_send_1addr_1port(JNIEnv *env, jobject instance,
@@ -553,6 +517,10 @@ Java_com_example_ipv4_1over_1ipv6_MyVpnService_send_1addr_1port(JNIEnv *env, job
     SERVER_PORT = port;
 
     env->ReleaseStringUTFChars(addr_, addr);
+
+    server_ready = true;
+
+    return 0;
 }
 
 extern "C"
@@ -598,6 +566,10 @@ Java_com_example_ipv4_1over_1ipv6_MainActivity_startVpn(JNIEnv *env, jobject ins
         LOGE("can't create socket");
     }
 
+    while (!server_ready) {
+        // 等待前端发送服务器ip
+    }
+
     server.sin6_family = AF_INET6;
     client.sin6_family = AF_INET6;
     client.sin6_port = htons(VPN_SERVER_TCP_PORT_TEST);
@@ -612,6 +584,7 @@ Java_com_example_ipv4_1over_1ipv6_MainActivity_startVpn(JNIEnv *env, jobject ins
     }*/
 
     server.sin6_port = htons(SERVER_PORT);
+
     Inet_pton(AF_INET6, SERVER_IPV6, &server.sin6_addr);
 
     int on = 1;
@@ -619,12 +592,16 @@ Java_com_example_ipv4_1over_1ipv6_MainActivity_startVpn(JNIEnv *env, jobject ins
     Bind_Socket(sockfd, (struct sockaddr *)&client, sizeof(struct sockaddr_in6));
 
 
+    LOGE("before connect");
+
     int temp;
     if ((temp  = connect(sockfd, (struct sockaddr *) &server, sizeof(server)) )== -1){
         // fprintf(stderr, "can't access server\n" );
         __android_log_print(ANDROID_LOG_ERROR, TAG, "can't access server %s", strerror(errno));
         return -1;
     }
+
+    LOGE("after connect");
 
     // TODO 注释掉
     connected = true;
@@ -803,114 +780,13 @@ Java_com_example_ipv4_1over_1ipv6_MyVpnService_send_1web_1request(JNIEnv *env, j
     return 0;
 }
 
-/*
-extern "C"
-JNIEXPORT jint JNICALL
-Java_com_example_ipv4_1over_1ipv6_MyVpnService_startVpn(JNIEnv *env, jobject instance) {
-
-    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "MyVpnService startvpn in c");
-
-    int length;
-    struct sockaddr_in6 server, client;
-    char buffer[MAXBUF + 1];
-    struct Message send_msg, recv_msg;
-    memset(&recv_msg, 0, sizeof(recv_msg));
-
-    // VPN链接时间
-    long program_start_time_sec = time(NULL);
-
-    if ((sockfd = socket(AF_INET6, SOCK_STREAM, 0)) < 0) {
-        // printf("资源分配失败\n");
-        LOGE("can't create socket");
-        return 0;
-    }
-
-    server.sin6_family = AF_INET6;
-    client.sin6_family = AF_INET6;
-    client.sin6_port = htons(VPN_SERVER_TCP_PORT_TEST);
-    Inet_pton(AF_INET6, "2402:f000:2:c001:a453:97f6:b2af:90d3", &client.sin6_addr);
-    if(test) {
-        server.sin6_port = htons(VPN_SERVER_TCP_PORT_TEST);
-        Inet_pton(AF_INET6, VPN_SERVER_IPV6_ADDRESS_TEST, &server.sin6_addr);
-    }
-    else {
-        server.sin6_port = htons(VPN_SERVER_TCP_PORT);
-        inet_pton(AF_INET6, VPN_SERVER_IPV6_ADDRESS, &server.sin6_addr);
-    }
-
-    int on = 1;
-    SetSocket(sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-    Bind_Socket(sockfd, (struct sockaddr *)&client, sizeof(struct sockaddr_in6));
-
-
-    int temp;
-    if ((temp  = connect(sockfd, (struct sockaddr *) &server, sizeof(server)) )== -1){
-        // fprintf(stderr, "can't access server\n" );
-        __android_log_print(ANDROID_LOG_ERROR, TAG, "can't access server");
-        return -1;
-    }
-
-    // connected = true;
-
-    LOGE("start");
-
-    s = time(NULL);
-
-
-    request_ipv4();
-
-    LOGE("after request_ipv4");
-
-
-
-    pthread_t recv_data;
-    pthread_t heart_th;
-    // pthread_t web_th;
-
-
-    int ret = pthread_create(&recv_data, NULL, manage_data, NULL);
-    if(ret) {
-        cout << "Create pthread error!" << endl;
-        return 1;
-    }
-
-    ret = pthread_create(&heart_th, NULL, send_heart, NULL);
-    if(ret) {
-        cout << "Create pthread error!" << endl;
-        return 1;
-    }
-
-    for(int i = 0;i < 3;i++) {
-        cout <<  "This is the main process." << endl;
-        sleep(1);
-    }
-
-    // pthread_create(&web_th, NULL, send_web_request, NULL);
-    LOGE("wait thread");
-    pthread_join(recv_data, NULL);
-    pthread_join(heart_th, NULL);
-    // pthread_join(web_th, NULL);
-
-
-    // manage_data(NULL);
-
-
-    // close(sockfd);
-    kill_myself();
-    LOGE("END");
-
-
-    return 0;
-
-}
-*/
 
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_example_ipv4_1over_1ipv6_MyVpnService_isGet_1ip(JNIEnv *env, jobject instance) {
 
     // TODO
-    // __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "%s", toWrite) ;
+    // 检查是否已经获得IP
     return (jboolean) get_ip;
 }
 

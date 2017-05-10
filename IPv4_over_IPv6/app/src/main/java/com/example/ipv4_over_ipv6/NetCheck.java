@@ -46,7 +46,7 @@ class NetCheck {
             // Log.e("Net", "Wifi 已连接");
             return true;
         }
-        Log.e("Net", "无Wifi连接");
+        // Log.e("Net", "无Wifi连接");
         return false;
     }
     private static boolean isMOBILEConnected(Context context)
@@ -89,6 +89,10 @@ class NetCheck {
         }
         */
 
+        if(! isWIFIConnected(context)) {
+            return null;
+        }
+
 
         Inet6Address ipv6_addr = null;
         NetworkInterface nif = NetworkInterface.getByName("wlan0");
@@ -109,7 +113,10 @@ class NetCheck {
         return ipv6_addr;
     }
 
-    static String getIPv6Address() {
+    static String getIPv6Address(Context context) {
+        if(! isWIFIConnected(context)) {
+            return null;
+        }
         try {
             final Enumeration<NetworkInterface> e = NetworkInterface.getNetworkInterfaces();
             while (e.hasMoreElements()) {

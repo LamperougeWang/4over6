@@ -119,7 +119,9 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             String ROOT_DIR = prefs.getString(MainActivity.Prefs.PIPE_DIR, "");
             PIPE_DIR = ROOT_DIR + "/tunnel";
             final int port = Integer.parseInt(prefs.getString(MainActivity.Prefs.SERVER_PORT, ""));
-
+            Log.e(TAG, server);
+            send_addr_port(server, port);
+            Log.e(TAG, "after end");
 
         } catch (Exception e) {
             e.printStackTrace();
