@@ -11,6 +11,8 @@ import android.os.StrictMode;
 import android.util.Log;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.content.SharedPreferences;
+
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -34,28 +36,23 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     private String mServerAddress = "2402:f000:1:4417::900";
     private int mServerPort = 5678;
 
-    private String sockfd;
+    public static final String ACTION_CONNECT = "com.example.ipv4_over_ipv6.START";
+    public static final String ACTION_DISCONNECT = "com.example.ipv4_over_ipv6.STOP";
 
-
-
-
-    // 从虚接口读取数据
-    private PendingIntent mConfigureIntent;
     // 用于输出调试信息 （Toast）
     private Handler mHandler;
 
     // 用于从虚接口读取数据
     private ParcelFileDescriptor mInterface;
-    // 虚接口描述符
-    private int fd;
     private String PIPE_DIR;
-    private String ROOT_DIR;
 
     // 本线程
     private Thread mThread;
 
 
     private boolean start = false;
+
+
 
 
 
@@ -75,10 +72,36 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     public native int send_web_requestt(String data, int length);
     public native int send_fd(int fd, String file);
     public native int kill();
+    public native int send_addr_port(String addr, int port);
 
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+
+        if (intent != null && ACTION_CONNECT.equals(intent.getAction())) {
+            connect();
+            /*
+            * TART_STICKY：如果service进程被kill掉，保留service的状态为开始状态，但不保留递送的intent对象。
+            * 随后系统会尝试重新创建service，由于服务状态为开始状态，所以创建服务后一定会调用onStartCommand(Intent,int,int)
+            * */
+            return START_STICKY;
+        } else {
+            stopVPNService();
+            /*
+            * START_NOT_STICKY：“非粘性的”。
+            * 使用这个返回值时，如果在执行完onStartCommand后，
+            * 服务被异常kill掉，系统不会自动重启该服务
+            * */
+            return START_NOT_STICKY;
+        }
+
+
+
+    }
+
+    private void connect() {
+        // 每次首先关闭之前的VPN连接
+        stopVPNService();
 
         Log.e(TAG, "进入startcommand");
 
@@ -88,17 +111,21 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         }
         mHandler.sendEmptyMessage(R.string.debug);
 
+        try{
 
-            try{
-                ROOT_DIR = intent.getStringExtra("ROOT");
-                PIPE_DIR = ROOT_DIR + "/tunnel";
-                mServerAddress = intent.getStringExtra("SERVER_ADDR");
-                mServerPort = Integer.parseInt(intent.getStringExtra("SERVER_PORT"));
-            } catch (Exception e) {
-                e.printStackTrace();
-                Log.e("what?", "what");
-                Log.e(TAG, e.toString());
-            }
+            // Extract information from the shared preferences.
+            final SharedPreferences prefs = getSharedPreferences(MainActivity.Prefs.NAME, MODE_PRIVATE);
+            final String server = prefs.getString(MainActivity.Prefs.SERVER_ADDRESS, "");
+            String ROOT_DIR = prefs.getString(MainActivity.Prefs.PIPE_DIR, "");
+            PIPE_DIR = ROOT_DIR + "/tunnel";
+            final int port = Integer.parseInt(prefs.getString(MainActivity.Prefs.SERVER_PORT, ""));
+
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e("what?", "what");
+            Log.e(TAG, e.toString());
+        }
         // stopVPNService();
 
         // Start a new session by creating a new thread.
@@ -106,10 +133,8 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         mThread.start();
 
         Log.e("create", "create success");
-
-        return START_STICKY;
-
     }
+
 
     /**
      * Called by the system to notify a Service that it is no longer used and is being removed.  The
@@ -168,7 +193,8 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         dns1 = parameterArray[2];
         dns2 = parameterArray[3];
         dns3 = parameterArray[4];
-        sockfd = parameterArray[5];
+        // sockrt 描述符
+        String sockfd = parameterArray[5];
 
 
         Log.e(TAG, ipv4Addr + " " + router + " " + dns1 + " " + dns2 + " " + dns3 + " " + sockfd);
@@ -205,7 +231,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
 
         // 5. 把获取到的安卓虚接口描述符写入管道传到后台
         Log.e(TAG, "configure: after es");
-        fd = mInterface.getFd();
+        int fd = mInterface.getFd();
         Log.e(TAG, "configure: after getfd");
         Log.e(TAG, "e" + PIPE_DIR);
         Log.e(TAG,":虚接口:" + String.valueOf(fd));

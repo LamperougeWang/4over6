@@ -91,6 +91,7 @@ int Close(int __fd) {
     int n;
     if((n = close(__fd)) < 0) {
         fprintf(stderr, "close fd %d error: %s \n",__fd, strerror(errno));
+        LOGE("close fd %d error: %s \n",__fd, strerror(errno));
         //exit(0);
     }
     return n;

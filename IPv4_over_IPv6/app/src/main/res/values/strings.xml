@@ -10,8 +10,8 @@
     <string name="connecting">Top VPN is connecting…</string>
     <string name="connected">Top VPN is connected!</string>
     <string name="disconnected">Top VPN is disconnected!</string>
-    <string name="server_ip">2402:f000:1:4417::900</string>
-    <string name="server_port">5678</string>
+    <string name="server_ip">2402:f000:5:8601:942c:3463:c810:6147</string>
+    <string name="server_port">6666</string>
     <string name="c_log">From C:</string>
     <string name="local_address">Local IPv6:</string>
     <string name="local_ip">无IPv6访问权限，请检查网络</string>

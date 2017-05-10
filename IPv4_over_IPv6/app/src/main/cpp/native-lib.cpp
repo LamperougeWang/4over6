@@ -94,6 +94,9 @@ bool kill_it = false;
 char server_ip[MAX_MESSAGE_LENGTH];
 char ipv4[MAX_MESSAGE_LENGTH];
 
+char *SERVER_IPV6;
+int SERVER_PORT = 6666;
+
 
 void createMessage(struct Message* msg, char type, char* data, int length)
 {
@@ -530,13 +533,28 @@ void * manage_data(void *arg) {
 
 
 int kill_myself() {
-    LOGE("我要自杀");
+    LOGE("Kill Back C");
     connected = false;
     if(sockfd) {
-        close(sockfd);
+        Close(sockfd);
     }
     return 0;
 }
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_example_ipv4_1over_1ipv6_MyVpnService_send_1addr_1port(JNIEnv *env, jobject instance,
+                                                                jstring addr_, jint port) {
+    const char *addr = env->GetStringUTFChars(addr_, 0);
+
+    // TODO
+
+    SERVER_IPV6 = (char *) addr;
+    SERVER_PORT = port;
+
+    env->ReleaseStringUTFChars(addr_, addr);
+}
+
 extern "C"
 
 JNIEXPORT jstring JNICALL
@@ -584,14 +602,17 @@ Java_com_example_ipv4_1over_1ipv6_MainActivity_startVpn(JNIEnv *env, jobject ins
     client.sin6_family = AF_INET6;
     client.sin6_port = htons(VPN_SERVER_TCP_PORT_TEST);
     Inet_pton(AF_INET6, "2402:f000:2:c001:a453:97f6:b2af:90d3", &client.sin6_addr);
-    if(test) {
+    /*if(test) {
         server.sin6_port = htons(VPN_SERVER_TCP_PORT_TEST);
         Inet_pton(AF_INET6, VPN_SERVER_IPV6_ADDRESS_TEST, &server.sin6_addr);
     }
     else {
         server.sin6_port = htons(VPN_SERVER_TCP_PORT);
         inet_pton(AF_INET6, VPN_SERVER_IPV6_ADDRESS, &server.sin6_addr);
-    }
+    }*/
+
+    server.sin6_port = htons(SERVER_PORT);
+    Inet_pton(AF_INET6, SERVER_IPV6, &server.sin6_addr);
 
     int on = 1;
     SetSocket(sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));

@@ -4,6 +4,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.net.VpnService;
 import android.os.Handler;
 import android.os.IBinder;
@@ -49,16 +50,27 @@ public class MainActivity extends AppCompatActivity {
 
     final private String TAG = "Main Activity";
 
-    private boolean start = false;
-    private MyVpnService mVPNService;
     // c后台线程
     private Thread cThread;
+    // 是否允许启动后台
+    private boolean allow = false;
+    // 是否已启动
+    public boolean start = false;
 
-    // private String server_addr;
-    // private String server_port;
+    // 监听两个按钮
+    Button stopButton =  (Button) findViewById(R.id.stopVPN);
+    Button startButton = (Button)  findViewById(R.id.stopVPN);
+    // 显示流量信息
+    TextView editText = (TextView) findViewById(R.id.log);
 
-    EditText addr;
-    EditText port;
+    EditText addr = (EditText) findViewById(R.id.address);
+    EditText port = (EditText) findViewById(R.id.port);
+    EditText local_ipv6 = (EditText) findViewById(R.id.local_address);
+
+    private String mServerAddress = "2402:f000:5:8601:942c:3463:c810:6147";
+    private String mServerPort = "6666";
+
+    public String local_ipv6_addr = "";
 
     private static final int CONNECTING = 0;
     private static final int CONNECTED  = 1;
@@ -67,7 +79,6 @@ public class MainActivity extends AppCompatActivity {
 
     private Handler mHandler = new Handler() {
         public void handleMessage(Message msg) { // in main(UI) thread
-            TextView editText = (TextView) findViewById(R.id.log);
             switch (msg.what) {
                 case CONNECTING:
                     editText.setText("Top VPN is connecting");
@@ -87,21 +98,50 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    public boolean handleMessage(Message message) {
+        //  显示提示信息
+        if(message != null) {
+            Toast.makeText(this, message.what, Toast.LENGTH_SHORT).show();
+        }
+        return false;
+    }
+
+
+    public interface Prefs {
+        String NAME = "INFO";
+        String SERVER_ADDRESS = "server.address";
+        String SERVER_PORT = "server.port";
+        String PIPE_DIR = "jni.dir";
+    }
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        addr = (EditText) findViewById(R.id.address);
-        port = (EditText) findViewById(R.id.port);
+        // 传递服务器IP，端口等
+        final SharedPreferences prefs = getSharedPreferences(Prefs.NAME, MODE_PRIVATE);
+        addr.setText(prefs.getString(Prefs.SERVER_ADDRESS, mServerAddress));
+        port.setText(prefs.getString(Prefs.SERVER_PORT, mServerPort));
+
 
         Log.e(TAG, getApplicationContext().getFilesDir().getPath());
 
         // 检查网络连接
         Toast toast = Toast.makeText(getApplicationContext(),
-                "正在检查网络", Toast.LENGTH_LONG);
+                "欢迎使用Top Vpn\n正在检查网络...", Toast.LENGTH_LONG);
         toast.setGravity(Gravity.CENTER, 0, 0);
         toast.show();
+
+
+        findViewById(R.id.stopVPN).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // 关闭VPN
+                startService(getServiceIntent().setAction(MyVpnService.ACTION_DISCONNECT));
+            }
+        });
 
 
 
@@ -114,25 +154,24 @@ public class MainActivity extends AppCompatActivity {
                 if (checkNet(getApplicationContext())) {
                     Log.d("Net", "网络已连接");
                     String iPv6_addr = getIPv6Address();
-                    EditText local_ipv6 = (EditText) findViewById(R.id.local_address);
                     if (iPv6_addr != null) {
                         // Toast.makeText(getApplicationContext(), "IPv6 网络访问正常", Toast.LENGTH_SHORT).show();
-
+                        allow = true;
+                        local_ipv6_addr = iPv6_addr;
                         local_ipv6.setText(iPv6_addr);
                     } else {
+                        allow = false;
+                        Toast.makeText(getApplicationContext(), "无IPv6访问权限，请检查网络, 2s后重试...", Toast.LENGTH_SHORT).show();
                         local_ipv6.setText("无IPv6访问权限，请检查网络");
+                        local_ipv6_addr = "无IPv6访问权限，请检查网络";
                     }
                 }
-
-
                 //要做的事情
                 net_handler.postDelayed(this, 2000);
             }
         };
 
-        net_handler.postDelayed(runnable, 2000);//每两秒执行一次runnable.
-
-
+        net_handler.postDelayed(runnable, 2000);//每两秒检查一次网络runnable.
 
         // 点击按钮连接VPN
         final Button startVPN;
@@ -140,38 +179,42 @@ public class MainActivity extends AppCompatActivity {
         startVPN.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                start = !start;
 
+                if(! allow) {
+                    Toast.makeText(getApplicationContext(), "无IPV6网络，请联网后重试...", Toast.LENGTH_SHORT).show();
+                }
+                else {
+                    prefs.edit()
+                            .putString(Prefs.SERVER_ADDRESS, addr.getText().toString())
+                            .putString(Prefs.SERVER_PORT, port.getText().toString())
+                            .putString(Prefs.PIPE_DIR, getApplicationContext().getFilesDir().getPath())
+                            .commit();
+
+                    // 有IPv6网络，可以连接,启动C后台
                     Runnable jni_back = new Runnable() {
                         @Override
                         public void run() {
                             startVpn();
                         }
                     };
-
                     cThread = new Thread(jni_back);
                     cThread.start();
-
                     flush();
-
-
-                    Log.e("click", "click");
-
 
                     // 客户程序一般需要先调用VpnService.prepare函数
                     // 询问用户权限，检查当前是否已经有VPN连接，如果有判断是否是本程序创建的
                     Intent intent = VpnService.prepare(getApplicationContext());
-                    // Toast.makeText(getApplicationContext(), "Top VPN is connecting...", Toast.LENGTH_SHORT).show();
-                    Log.e("Click", "Top VPN 正在连接");
+                    Toast.makeText(getApplicationContext(), "Top VPN is connecting...", Toast.LENGTH_SHORT).show();
+                    // Log.e("Click", "Top VPN 正在连接");
                     if (intent != null) {
                         // 没有VPN连接，或者不是本程序创建的
-                        Log.e(TAG, "NULL");
+                        Log.e(TAG, "NOT NULL");
                         startActivityForResult(intent, 0);
                     } else {
-                        Log.e(TAG, "NOT NULL");
+                        Log.e(TAG, "NULL");
                         onActivityResult(0, RESULT_OK, null);
                     }
-
+                }
 
             }
         });
@@ -186,17 +229,12 @@ public class MainActivity extends AppCompatActivity {
         if (resultCode == RESULT_OK) {
             // 如果返回结果是OK的，也就是用户同意建立VPN连接，则将你写的，继承自VpnService类的服务启动起来就行了。
             Intent intent = new Intent(this, MyVpnService.class);
+            /*
             intent.putExtra("ROOT", getApplicationContext().getFilesDir().getPath());
             intent.putExtra("SERVER_ADDR", addr.getText().toString());
             intent.putExtra("SERVER_PORT", port.getText().toString());
-            startService(intent);
-            /*
-            if(start) {
-                bindService(intent, mServiceConnection, Context.BIND_AUTO_CREATE);
-            }
             */
-            // start = false;
-
+            startService(intent.setAction(MyVpnService.ACTION_CONNECT));
         }
     }
 
@@ -222,6 +260,10 @@ public class MainActivity extends AppCompatActivity {
 
         Thread flushThread = new Thread(jni_back);
         flushThread.start();
+    }
+
+    private Intent getServiceIntent() {
+        return new Intent(this, MyVpnService.class);
     }
 
     /**

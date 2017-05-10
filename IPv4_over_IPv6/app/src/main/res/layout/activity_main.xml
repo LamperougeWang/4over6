@@ -54,12 +54,10 @@
         <Button
             android:id="@+id/startVPN"
             style="@style/item"
-            android:layout_margin="10dp"
             android:text="@string/connect" />
 
         <Button
             android:id="@+id/stopVPN"
-            android:layout_margin="10dp"
             style="@style/item"
             android:text="@string/disconnect" />
 
