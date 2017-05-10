@@ -38,6 +38,8 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
 
     public static final String ACTION_CONNECT = "com.example.ipv4_over_ipv6.START";
     public static final String ACTION_DISCONNECT = "com.example.ipv4_over_ipv6.STOP";
+    public static final String ACTION_DESTROY = "com.example.ipv4_over_ipv6.DESTROY";
+
 
     // 用于输出调试信息 （Toast）
     private Handler mHandler;
@@ -125,6 +127,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             PIPE_DIR = ROOT_DIR + "/tunnel";
             final int port = Integer.parseInt(prefs.getString(MainActivity.Prefs.SERVER_PORT, ""));
             Log.e(TAG, server);
+
             send_addr_port(server, port);
 
             Log.e(TAG, "after end");
@@ -152,7 +155,10 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
      */
     @Override
     public void onDestroy() {
+        Log.e(TAG, "onDestroy stop");
+        kill();
         stopVPNService();
+        stopSelf();
     }
 
     public void stopVPNService() {
@@ -172,7 +178,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
 
         }
         mThread = null;
-        stopSelf();
+        //stopSelf();
     }
 
     @Override

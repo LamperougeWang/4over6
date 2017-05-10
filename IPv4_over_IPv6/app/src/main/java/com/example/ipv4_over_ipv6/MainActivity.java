@@ -160,7 +160,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 // 关闭VPN
+                stoped = true;
                 startService(getServiceIntent().setAction(MyVpnService.ACTION_DISCONNECT));
+                // stopService(getServiceIntent());
+                setStop();
             }
         });
 
@@ -179,7 +182,7 @@ public class MainActivity extends AppCompatActivity {
                         local_ipv6.setText(iPv6_addr);
                     } else {
                         allow = false;
-                        Toast.makeText(getApplicationContext(), "无IPv6访问权限，请检查网络, 2s后重试...", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(getApplicationContext(), "无IPv6访问权限，请检查网络, 4s后重试...", Toast.LENGTH_SHORT).show();
                         local_ipv6.setText("无IPv6访问权限，请检查网络");
                         local_ipv6_addr = "无IPv6访问权限，请检查网络";
                     }
@@ -188,7 +191,7 @@ public class MainActivity extends AppCompatActivity {
                     allow = false;
                 }
                 //要做的事情
-                net_handler.postDelayed(this, 2000);
+                net_handler.postDelayed(this, 4000);
             }
         };
 
@@ -218,9 +221,11 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void run() {
                             stoped = false;
+                            setStart();
                             startVpn();
-                            startService(getServiceIntent().setAction(MyVpnService.ACTION_DISCONNECT));
+                            stopService(getServiceIntent());
                             set_STOP();
+                            setStop();
                         }
                     };
                     cThread = new Thread(jni_back);

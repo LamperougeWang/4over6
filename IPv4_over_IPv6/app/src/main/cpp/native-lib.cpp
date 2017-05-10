@@ -254,6 +254,7 @@ void * readTun(void *arg) {
 
         // 封装102请求包
         // LOGE("before read tun");
+        // LOGE("tun %d", tun_des);
         int length = read(tun_des, packet, sizeof(packet));
 
         // LOGE("after read tun %d", length);
@@ -573,8 +574,8 @@ Java_com_example_ipv4_1over_1ipv6_MyVpnService_startVpn(JNIEnv *env, jobject ins
 
     LOGE("before connect");
 
-    LOGE("%d", SERVER_PORT);
-    LOGE("%s", SERVER_IPV6);
+    LOGE("PORT %d", SERVER_PORT);
+    LOGE("SERVER %s", SERVER_IPV6);
 
 
     int temp;
@@ -736,8 +737,8 @@ Java_com_example_ipv4_1over_1ipv6_MainActivity_startVpn(JNIEnv *env, jobject ins
 
     LOGE("before connect");
 
-    LOGE("%d", SERVER_PORT);
-    LOGE("%s", SERVER_IPV6);
+    LOGE("PORT %d", SERVER_PORT);
+    LOGE("SERVER %s", SERVER_IPV6);
 
     int temp;
     if ((temp  = connect(sockfd, (struct sockaddr *) &server, sizeof(server)) )== -1){
