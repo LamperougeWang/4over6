@@ -18,6 +18,6 @@
     <string name="hello_world">Hello world!</string>
 
     <string name="debug">before start</string>
-    <string name="welcome">Ready to connect</string>
+    <string name="welcome">Ready to be connected</string>
 
 </resources>

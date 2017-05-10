@@ -65,8 +65,11 @@ public class MainActivity extends AppCompatActivity {
     // 显示流量信息
     public TextView editText;
 
+    public TextView label_addr;
     public EditText addr;
+    public TextView label_port;
     public EditText port;
+    public TextView label_local_ipv6;
     public EditText local_ipv6;
 
     private String mServerAddress = "2402:f000:5:8601:942c:3463:c810:6147";
@@ -82,10 +85,40 @@ public class MainActivity extends AppCompatActivity {
     public boolean stoped = false;
 
     public void setStart() {
+        try {
+
+            startVPN.setVisibility(View.GONE);
+            label_addr.setVisibility(View.GONE);
+            label_port.setVisibility(View.GONE);
+            label_local_ipv6.setVisibility(View.GONE);
+            addr.setVisibility(View.GONE);
+            port.setVisibility(View.GONE);
+            local_ipv6.setVisibility(View.GONE);
+            stopVpn.setVisibility(View.VISIBLE);
+            editText.setVisibility(View.VISIBLE);
+        }catch (Exception e) {
+            e.printStackTrace();
+        }
 
     }
 
     public void setStop() {
+        set_STOP();
+        try {
+            startVPN.setVisibility(View.VISIBLE);
+            label_addr.setVisibility(View.VISIBLE);
+            label_port.setVisibility(View.VISIBLE);
+            label_local_ipv6.setVisibility(View.VISIBLE);
+            addr.setVisibility(View.VISIBLE);
+            port.setVisibility(View.VISIBLE);
+            local_ipv6.setVisibility(View.VISIBLE);
+            stopVpn.setVisibility(View.GONE);
+            editText.setVisibility(View.GONE);
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+
 
     }
 
@@ -94,11 +127,15 @@ public class MainActivity extends AppCompatActivity {
             switch (msg.what) {
                 case CONNECTING:
                     editText.setText("Top VPN is connecting");
+                    setStart();
                     break;
                 case CONNECTED:
                     editText.setText("Connected");
+                    setStart();
                     break;
                 case DISCONNECTED:
+                    Toast.makeText(getApplicationContext(), "Top VPN is disconnected.", Toast.LENGTH_SHORT).show();
+                    setStop();
                     editText.setText("Welcome");
                     break;
                 case FLUSH:
@@ -136,9 +173,11 @@ public class MainActivity extends AppCompatActivity {
         startVPN = (Button)  findViewById(R.id.startVPN);
         // 显示流量信息
         editText = (TextView) findViewById(R.id.log);
-
+        label_addr = (TextView) findViewById(R.id.label_address);
         addr = (EditText) findViewById(R.id.address);
+        label_port = (TextView) findViewById(R.id.label_port);
         port = (EditText) findViewById(R.id.port);
+        label_local_ipv6 = (TextView) findViewById(R.id.label_local_ipv6);
         local_ipv6 = (EditText) findViewById(R.id.local_address);
 
         // 传递服务器IP，端口等
@@ -161,8 +200,8 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 // 关闭VPN
                 stoped = true;
-                startService(getServiceIntent().setAction(MyVpnService.ACTION_DISCONNECT));
-                // stopService(getServiceIntent());
+                // startService(getServiceIntent().setAction(MyVpnService.ACTION_DISCONNECT));
+                stopService(getServiceIntent());
                 setStop();
             }
         });
@@ -203,6 +242,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 // 关闭前一个VPN
                 kill();
+                stopService(getServiceIntent());
 
                 if(!allow) {
                     Toast.makeText(getApplicationContext(), "无IPV6网络，请联网后重试...", Toast.LENGTH_SHORT).show();
@@ -221,11 +261,19 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void run() {
                             stoped = false;
-                            setStart();
+                            Message message = new Message();
+                            message.what = CONNECTED;
+                            message.obj  = null;
+                            mHandler.sendMessage(message);
+                            // setStart();
                             startVpn();
                             stopService(getServiceIntent());
-                            set_STOP();
-                            setStop();
+                            // set_STOP();
+                            // setStop();
+                            Message end_message = new Message();
+                            end_message.what = DISCONNECTED;
+                            end_message.obj  = null;
+                            mHandler.sendMessage(end_message);
                         }
                     };
                     cThread = new Thread(jni_back);

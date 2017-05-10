@@ -19,6 +19,7 @@
     tools:layout_editor_absoluteX="8dp">
 
         <TextView
+            android:id="@+id/label_address"
             style="@style/item"
 
             android:text="@string/address" />
@@ -30,6 +31,7 @@
             android:text="@string/server_ip" />
 
         <TextView
+            android:id="@+id/label_port"
             style="@style/item"
 
             android:text="@string/port" />
@@ -41,6 +43,7 @@
             android:text="@string/server_port" />
 
         <TextView
+            android:id="@+id/label_local_ipv6"
             style="@style/item"
 
             android:text="@string/local_address" />
@@ -56,11 +59,7 @@
             style="@style/item"
             android:text="@string/connect" />
 
-        <Button
-            android:id="@+id/stopVPN"
-            style="@style/item"
-            android:layout_marginTop="10dp"
-            android:text="@string/disconnect" />
+
 
 
         <TextView
@@ -69,8 +68,15 @@
             android:layout_height="wrap_content"
             android:lineSpacingExtra="10dp"
             android:layout_margin="10dp"
+            android:visibility="gone"
             android:text="@string/welcome"
             />
+
+        <Button
+            android:id="@+id/stopVPN"
+            style="@style/item"
+            android:visibility="gone"
+            android:text="@string/disconnect" />
 
 </LinearLayout>
 

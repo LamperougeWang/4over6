@@ -21,6 +21,10 @@ using namespace std;
 // #define VPN_SERVER_IPV6_ADDRESS_TEST "2402:f000:5:8601:8e23:e6e3:b7:3110"
 #define VPN_SERVER_TCP_PORT_TEST 6666
 
+#define KB 1024
+#define MB 1048576
+#define GB 1073741824
+
 // 客户端消息结构体
 struct Message {
     int length;                             // 整个结构体的字节长度
@@ -83,6 +87,7 @@ bool test = true;
 char * PIPE_DIR;
 
 // 数据包记录
+char ip_log[MAX_MESSAGE_LENGTH];
 int byte_in = 0;
 int byte_out = 0;
 int total_byte = 0;
@@ -94,12 +99,44 @@ bool kill_it = false;
 // 连接信息
 char server_ip[MAX_MESSAGE_LENGTH];
 char ipv4[MAX_MESSAGE_LENGTH];
+char out_flow[MAX_MESSAGE_LENGTH];
+char in_flow[MAX_MESSAGE_LENGTH];
+char total_flow[MAX_MESSAGE_LENGTH];
+char v6[MAX_MESSAGE_LENGTH];
 
 bool server_ready = false;
 
 char *SERVER_IPV6;
 int SERVER_PORT = 6666;
 
+
+void num_to_MGB(int BYTE, char* data_flow) {
+    // char data_flow[MAX_MESSAGE_LENGTH];
+    if(BYTE < KB) {
+        sprintf(data_flow, "%d B", BYTE);
+    } else if(BYTE < MB) {
+        sprintf(data_flow, "%d KB", BYTE/KB);
+    } else if(BYTE < GB){
+        sprintf(data_flow, "%d MB", BYTE/MB);
+    } else {
+        sprintf(data_flow, "%d GB", BYTE/GB);
+    }
+    // return data_flow;
+}
+
+
+/*string num_to_MGB(int BYTE) {
+    char data_flow[MAX_MESSAGE_LENGTH];
+    if(BYTE < MB) {
+        sprintf(data_flow, "%d B", BYTE);
+    } else if(BYTE < GB) {
+        sprintf(data_flow, "%d KB", BYTE/MB);
+    } else {
+        sprintf(data_flow, "%d GB", BYTE/GB);
+    }
+    string flow = data_flow;
+    return flow;
+}*/
 
 void createMessage(struct Message* msg, char type, char* data, int length)
 {
@@ -215,6 +252,7 @@ char * get_log(){
 
     if(connected) {
 
+
         // 已运行的时间
         time_t run_time;
         time(&run_time);
@@ -223,11 +261,16 @@ char * get_log(){
         long t = run_time - start_time;
         run_info = gmtime(&t);
         // VPN开启时间
-
+        sprintf(packet_log, "%s", ip_log);
         // sprintf(packet_log, "已运行:%02d:%02d:%02d %ld %ld %ld\n", run_info->tm_hour, run_info->tm_min, run_info->tm_sec, t, start_time, run_time);
-        sprintf(packet_log, "已运行:%02d:%02d:%02d\n", run_info->tm_hour, run_info->tm_min, run_info->tm_sec);
+        sprintf(packet_log, "%s已运行: %02d:%02d:%02d\n", packet_log,  run_info->tm_hour, run_info->tm_min, run_info->tm_sec);
 
-        sprintf(packet_log, "%s已发送:%d B/%d 个数据包\n已接收:%dB/%d个数据包\n共出入:%dB/%d个数据包", packet_log, byte_out, packet_out, byte_in, packet_in, total_byte, total_packet );
+        num_to_MGB(byte_out, out_flow);
+        num_to_MGB(byte_in, in_flow);
+        num_to_MGB(total_byte, total_flow);
+        // sprintf(packet_log, "%s已发送: %d B/%d 个数据包\n已接收: %dB/%d个数据包\n共出入: %dB/%d个数据包", packet_log, byte_out, packet_out, byte_in, packet_in, total_byte, total_packet );
+        sprintf(packet_log, "%s已发送: %s/%d 个数据包\n已接收: %s/%d个数据包\n共出入: %s/%d个数据包\n", packet_log, out_flow, packet_out, in_flow, packet_in, total_flow, total_packet );
+        sprintf(packet_log, "%s上联V6: %s\n", packet_log, v6);
     }
     else {
         sprintf(packet_log, "Top Vpn is connecting....");
@@ -340,7 +383,7 @@ void recv_ipv4_addr(Msg* msg) {
     for(int i = 0 ; i < 5; ++i) {
         inet_ntop(AF_INET, &(reply->addr_v4[i]), ip_[i], sizeof(ip_[i]));
     }
-    
+    sprintf(ip_log, "IPV4:    \t%s\nRouter:\t%s\nDNS:    \t%s %s %s\n", ip_[0], ip_[1], ip_[2], ip_[3], ip_[4]);
     sprintf(toWrite, "%s %s %s %s %s %d", ip_[0], ip_[1], ip_[2], ip_[3], ip_[4], sockfd);
     get_ip = true;
     LOGE("收到 %s", toWrite);
@@ -493,6 +536,7 @@ void * manage_data(void *arg) {
             case 101:
                 // IP响应
                 sscanf(recv_msg.data, "%s%s%s%s%s", ip, router, dns1, dns2, dns3);
+                sprintf(ip_log, "IPV4:   \t%s\nRouter:\t%s\nDNS:   \t%s %s %s\n", ip, router, dns1, dns2, dns3);
                 sprintf(toWrite, "%s %s %s %s %s %d", ip, router, dns1, dns2, dns3, sockfd);
                 get_ip = true;
                 LOGE("orz %s", toWrite);
@@ -659,6 +703,9 @@ Java_com_example_ipv4_1over_1ipv6_MyVpnService_send_1addr_1port(JNIEnv *env, job
     // TODO
 
     SERVER_IPV6 = (char *) addr;
+    LOGE("before cp");
+    memcpy(v6, (char *)addr, strlen(addr));
+    LOGE("after cp %s", v6);
     SERVER_PORT = port;
 
     env->ReleaseStringUTFChars(addr_, addr);
