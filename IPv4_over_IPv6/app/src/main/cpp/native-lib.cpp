@@ -11,6 +11,7 @@ using namespace std;
 #define MAXBUF 10240
 #define MAX_FIFO_BUF 1024
 #define MAX_MESSAGE_LENGTH 4096
+#define MAX_PACKET_LENGTH 65536
 
 
 #define VPN_SERVER_IPV6_ADDRESS "2402:f000:1:4417::900"
@@ -122,9 +123,18 @@ void createMessage(struct Message* msg, char type, char* data, int length)
 int kill_myself() {
     LOGE("Kill Back C");
     connected = false;
+    byte_in = 0;
+    byte_out = 0;
+    total_byte = 0;
+    packet_in = 0;
+    packet_out = 0;
+    total_packet = 0;
+    server_ready = false;
+    get_ip = false;
     if(sockfd) {
         Close(sockfd);
     }
+    LOGE("kill over");
     return 0;
 }
 
@@ -181,8 +191,6 @@ void * send_heart(void *arg) {
 
         sleep(20);
     }
-    
-
 
     return NULL;
 }
@@ -215,8 +223,8 @@ char * get_log(){
         long t = run_time - start_time;
         run_info = gmtime(&t);
         // VPN开启时间
-        start_info = localtime(& start_time);
 
+        // sprintf(packet_log, "已运行:%02d:%02d:%02d %ld %ld %ld\n", run_info->tm_hour, run_info->tm_min, run_info->tm_sec, t, start_time, run_time);
         sprintf(packet_log, "已运行:%02d:%02d:%02d\n", run_info->tm_hour, run_info->tm_min, run_info->tm_sec);
 
         sprintf(packet_log, "%s已发送:%d B/%d 个数据包\n已接收:%dB/%d个数据包\n共出入:%dB/%d个数据包", packet_log, byte_out, packet_out, byte_in, packet_in, total_byte, total_packet );
@@ -225,7 +233,7 @@ char * get_log(){
         sprintf(packet_log, "Top Vpn is connecting....");
     }
 
-    LOGE("%s", packet_log);
+    // LOGE("%s", packet_log);
     return packet_log;
 }
 
@@ -234,7 +242,7 @@ void * readTun(void *arg) {
 
     struct Msg send_msg;
     // 虚接口读出的数据包
-    char packet[MAX_MESSAGE_LENGTH];
+    char packet[MAX_PACKET_LENGTH];
 
     while(connected) {
         // 持续读取虚接口
@@ -245,7 +253,10 @@ void * readTun(void *arg) {
         memset(packet, 0, sizeof(packet));
 
         // 封装102请求包
+        // LOGE("before read tun");
         int length = read(tun_des, packet, sizeof(packet));
+
+        // LOGE("after read tun %d", length);
         if(length > 0) {
             // 封装数据
             // LOGE("read from tunnel %d %s", length, packet);
@@ -256,29 +267,33 @@ void * readTun(void *arg) {
             memcpy(send_msg.data, packet, length);
             // 发送IPV6数据包
             int temp = write(sockfd, (char*)&send_msg, length + sizeof(struct Msg_Hdr));
-            if(temp == 0) {
+
+            /*if(temp == 0) {
                 kill_myself();
                 LOGE("服务器关闭，C后台关闭");
                 continue;
-            }
-            if(temp < 0) {
+            }*/
+            if(temp <= 0) {
                 LOGE("102 发送失败");
                 continue;
             }
 
 
 
-            LOGE("102 发送成功 %d msg.length: %d write_length:%d %d %d %s", send_msg.hdr.type, send_msg.hdr.length, temp, sizeof(struct Msg_Hdr), length + sizeof(struct Msg_Hdr), send_msg.data);
             // 记录读取的长度和次数
             debugPacket(&send_msg, send_msg.hdr.length);
             byte_out += length + 5;
             packet_out += 1;
             total_byte += length + 5;
             total_packet += 1;
+            LOGE("102 发送成功 %d msg.length: %d write_length:%d %ld %ld %s", send_msg.hdr.type, send_msg.hdr.length, temp, sizeof(struct Msg_Hdr), length + sizeof(struct Msg_Hdr), send_msg.data);
 
-            get_log();
+
+            // get_log();
         }
     }
+    LOGE("after read Tun");
+    return NULL;
 }
 
 
@@ -308,6 +323,7 @@ int write_tun(char* payload, uint32_t len) {
     // LOGE("before write");
     Write_nByte(tun_des, payload, len);
     // LOGE("after write");
+    LOGE("写入虚接口");
     return 0;
 }
 
@@ -345,8 +361,9 @@ int manage() {
     if(t > 60) {
         // 关闭套接字
         over_time = true;
-        connected = false;
+        // connected = false;
         // close(sockfd);
+        LOGE("超时 kill");
         kill_myself();
         LOGE("超时");
         return -1;
@@ -373,9 +390,10 @@ int manage() {
         if(msg.hdr.type != 100 && msg.hdr.type != 104) {
             n = read(fd, ipv4_payload, msg.hdr.length);
             if(n != msg.hdr.length) {
-                fprintf(stderr, "read payload error, need %d byte, read %d byte\n",msg.hdr.length, n);
+                LOGE("read payload error, need %d byte, read x byte\n",msg.hdr.length);
                 if(n <= 0) {
                     // Close(fd);
+                    LOGE("读取data出错，关闭");
                     kill_myself();
                     // connected = false;
                     return -1;
@@ -422,6 +440,7 @@ void * new_th(void * arg) {
             break;
         }
     }
+    return NULL;
 }
 
 
@@ -502,8 +521,133 @@ void * manage_data(void *arg) {
         // 间隔一秒
         sleep(1);
     }
+    return NULL;
 }
 
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_example_ipv4_1over_1ipv6_MyVpnService_startVpn(JNIEnv *env, jobject instance) {
+
+    // TODO
+    __android_log_print(ANDROID_LOG_ERROR, "JNIMsg", "MyVpnService startvpn in c");
+
+    int length;
+    struct sockaddr_in6 server, client;
+    char buffer[MAXBUF + 1];
+    struct Message send_msg, recv_msg;
+    memset(&recv_msg, 0, sizeof(recv_msg));
+
+    // VPN链接时间
+    long program_start_time_sec = time(NULL);
+
+    if ((sockfd = socket(AF_INET6, SOCK_STREAM, 0)) < 0) {
+        // printf("资源分配失败\n");
+        LOGE("can't create socket");
+    }
+
+    while (!server_ready) {
+        // 等待前端发送服务器ip
+    }
+
+    server.sin6_family = AF_INET6;
+    client.sin6_family = AF_INET6;
+    client.sin6_port = htons(VPN_SERVER_TCP_PORT_TEST);
+    Inet_pton(AF_INET6, "2402:f000:2:c001:a453:97f6:b2af:90d3", &client.sin6_addr);
+    /*if(test) {
+        server.sin6_port = htons(VPN_SERVER_TCP_PORT_TEST);
+        Inet_pton(AF_INET6, VPN_SERVER_IPV6_ADDRESS_TEST, &server.sin6_addr);
+    }
+    else {
+        server.sin6_port = htons(VPN_SERVER_TCP_PORT);
+        inet_pton(AF_INET6, VPN_SERVER_IPV6_ADDRESS, &server.sin6_addr);
+    }*/
+
+    server.sin6_port = htons(SERVER_PORT);
+
+    Inet_pton(AF_INET6, SERVER_IPV6, &server.sin6_addr);
+
+    int on = 1;
+    SetSocket(sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    Bind_Socket(sockfd, (struct sockaddr *)&client, sizeof(struct sockaddr_in6));
+
+
+    LOGE("before connect");
+
+    LOGE("%d", SERVER_PORT);
+    LOGE("%s", SERVER_IPV6);
+
+
+    int temp;
+    if ((temp  = connect(sockfd, (struct sockaddr *) &server, sizeof(server)) )== -1){
+        // fprintf(stderr, "can't access server\n" );
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "can't access server %s", strerror(errno));
+        return -1;
+    }
+
+    LOGE("after connect");
+
+    // TODO 注释掉
+    connected = true;
+
+    LOGE("start");
+
+    s = time(NULL);
+
+
+    request_ipv4();
+
+    LOGE("收到 request_ipv4");
+
+
+
+    pthread_t recv_data;
+    pthread_t heart_th;
+    pthread_t new_data;
+    // pthread_t web_th;
+
+    int ret = 0;
+
+
+    /*int ret = pthread_create(&recv_data, NULL, manage_data, NULL);
+    if(ret) {
+        LOGE("Create pthread error!");
+        return 1;
+    }
+    */
+    ret = pthread_create(&new_data, NULL, new_th, NULL);
+    if(ret) {
+        LOGE("Create pthread error!");
+        return 1;
+    }
+
+    ret = pthread_create(&heart_th, NULL, send_heart, NULL);
+    if(ret) {
+        LOGE("Create pthread error!");
+        return 1;
+    }
+
+    LOGE("wait thread");
+    pthread_join(heart_th, NULL);
+    pthread_join(new_data, NULL);
+
+    LOGE("startVpn ready kill");
+    kill_myself();
+    LOGE("Start Vpn END");
+
+
+    return 0;
+
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_example_ipv4_1over_1ipv6_MainActivity_kill(JNIEnv *env, jobject instance) {
+
+    // TODO
+    LOGE("Main activity call kill");
+    kill_myself();
+    return 0;
+}
 
 extern "C"
 JNIEXPORT jint JNICALL
@@ -529,8 +673,6 @@ JNIEXPORT jstring JNICALL
 Java_com_example_ipv4_1over_1ipv6_MainActivity_get_1info(JNIEnv *env, jobject instance) {
 
     // TODO
-
-
     return env->NewStringUTF(get_log());
 }
 
@@ -594,6 +736,9 @@ Java_com_example_ipv4_1over_1ipv6_MainActivity_startVpn(JNIEnv *env, jobject ins
 
     LOGE("before connect");
 
+    LOGE("%d", SERVER_PORT);
+    LOGE("%s", SERVER_IPV6);
+
     int temp;
     if ((temp  = connect(sockfd, (struct sockaddr *) &server, sizeof(server)) )== -1){
         // fprintf(stderr, "can't access server\n" );
@@ -656,6 +801,7 @@ Java_com_example_ipv4_1over_1ipv6_MainActivity_startVpn(JNIEnv *env, jobject ins
 
 
     // close(sockfd);
+    LOGE("startVpn ready to kill");
     kill_myself();
     LOGE("Start Vpn END");
 
@@ -668,6 +814,7 @@ extern "C"
 JNIEXPORT jint JNICALL
 Java_com_example_ipv4_1over_1ipv6_MyVpnService_kill(JNIEnv *env, jobject instance) {
 
+    LOGE("Vpnservice java call kill");
     return kill_myself();
 
 }

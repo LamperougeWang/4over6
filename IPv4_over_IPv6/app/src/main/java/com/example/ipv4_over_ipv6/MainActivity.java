@@ -46,6 +46,8 @@ public class MainActivity extends AppCompatActivity {
     // 后台VPN主线程
     public native int startVpn();
     public native String get_info();
+    public native int kill();
+
 
 
     final private String TAG = "Main Activity";
@@ -76,6 +78,8 @@ public class MainActivity extends AppCompatActivity {
     private static final int CONNECTED  = 1;
     private static final int FLUSH   = 2;
     private static final int DISCONNECTED = 3;
+
+    public boolean stoped = false;
 
     public void setStart() {
 
@@ -147,7 +151,7 @@ public class MainActivity extends AppCompatActivity {
 
         // 检查网络连接
         Toast toast = Toast.makeText(getApplicationContext(),
-                "Welcome\n\nCheck Net...", Toast.LENGTH_LONG);
+                "Welcome.Check Net...", Toast.LENGTH_LONG);
         toast.setGravity(Gravity.CENTER, 0, 0);
         toast.show();
 
@@ -194,6 +198,8 @@ public class MainActivity extends AppCompatActivity {
         startVPN.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                // 关闭前一个VPN
+                kill();
 
                 if(!allow) {
                     Toast.makeText(getApplicationContext(), "无IPV6网络，请联网后重试...", Toast.LENGTH_SHORT).show();
@@ -205,15 +211,21 @@ public class MainActivity extends AppCompatActivity {
                             .putString(Prefs.PIPE_DIR, getApplicationContext().getFilesDir().getPath())
                             .commit();
 
+                    kill();
+
                     // 有IPv6网络，可以连接,启动C后台
                     Runnable jni_back = new Runnable() {
                         @Override
                         public void run() {
+                            stoped = false;
                             startVpn();
+                            startService(getServiceIntent().setAction(MyVpnService.ACTION_DISCONNECT));
+                            set_STOP();
                         }
                     };
                     cThread = new Thread(jni_back);
                     cThread.start();
+
                     flush();
 
                     // 客户程序一般需要先调用VpnService.prepare函数
@@ -255,10 +267,13 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 while (true) {
-                    Message message = new Message();
-                    message.what = FLUSH;
-                    message.obj  = get_info();
-                    mHandler.sendMessage(message);
+                    if(! stoped) {
+                        Message message = new Message();
+                        message.what = FLUSH;
+                        message.obj  = get_info();
+                        mHandler.sendMessage(message);
+                    }
+
 
                     try {
                         sleep(1000);
@@ -273,6 +288,8 @@ public class MainActivity extends AppCompatActivity {
         flushThread.start();
     }
 
+
+
     private Intent getServiceIntent() {
         return new Intent(this, MyVpnService.class);
     }
@@ -282,4 +299,12 @@ public class MainActivity extends AppCompatActivity {
      * which is packaged with this application.
      */
     // public native String stringFromJNI();
+
+    public void set_STOP() {
+        stoped = true;
+        Message message = new Message();
+        message.what = FLUSH;
+        message.obj  = "Vpn 已断开";
+        mHandler.sendMessage(message);
+    }
 }

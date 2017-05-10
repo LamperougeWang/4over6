@@ -73,19 +73,24 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     public native int send_fd(int fd, String file);
     public native int kill();
     public native int send_addr_port(String addr, int port);
+    public native int startVpn();
 
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
 
         if (intent != null && ACTION_CONNECT.equals(intent.getAction())) {
+            Log.e(TAG, "start service");
             connect();
+
             /*
             * TART_STICKY：如果service进程被kill掉，保留service的状态为开始状态，但不保留递送的intent对象。
             * 随后系统会尝试重新创建service，由于服务状态为开始状态，所以创建服务后一定会调用onStartCommand(Intent,int,int)
             * */
             return START_STICKY;
         } else {
+            Log.e(TAG, "stop service");
+            kill();
             stopVPNService();
             /*
             * START_NOT_STICKY：“非粘性的”。
@@ -109,7 +114,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         if (mHandler == null) {
             mHandler = new Handler(this);
         }
-        mHandler.sendEmptyMessage(R.string.debug);
+        // mHandler.sendEmptyMessage(R.string.debug);
 
         try{
 
@@ -121,6 +126,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             final int port = Integer.parseInt(prefs.getString(MainActivity.Prefs.SERVER_PORT, ""));
             Log.e(TAG, server);
             send_addr_port(server, port);
+
             Log.e(TAG, "after end");
 
         } catch (Exception e) {
@@ -150,11 +156,23 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     }
 
     public void stopVPNService() {
+        // kill();
 
         if (mThread != null) {
             mThread.interrupt();
         }
+        if(mInterface != null) {
+            try {
+                mInterface.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            } finally {
+                mInterface = null;
+            }
+
+        }
         mThread = null;
+        stopSelf();
     }
 
     @Override
@@ -211,6 +229,8 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         builder.addDnsServer(dns3);
         builder.setSession("Top Vpn");
         Log.e(TAG, "configure: before es");
+
+
 
         /*try {
             mInterface.close();
