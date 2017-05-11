@@ -104,6 +104,7 @@ char in_flow[MAX_MESSAGE_LENGTH];
 char total_flow[MAX_MESSAGE_LENGTH];
 char v6[MAX_MESSAGE_LENGTH];
 
+
 bool server_ready = false;
 
 char *SERVER_IPV6;
@@ -115,11 +116,11 @@ void num_to_MGB(int BYTE, char* data_flow) {
     if(BYTE < KB) {
         sprintf(data_flow, "%d B", BYTE);
     } else if(BYTE < MB) {
-        sprintf(data_flow, "%d KB", BYTE/KB);
+        sprintf(data_flow, "%.2f KB", float(BYTE)/float(KB));
     } else if(BYTE < GB){
-        sprintf(data_flow, "%d MB", BYTE/MB);
+        sprintf(data_flow, "%.2f MB", float(BYTE)/float(MB));
     } else {
-        sprintf(data_flow, "%d GB", BYTE/GB);
+        sprintf(data_flow, "%.2f GB", float(BYTE)/float(GB));
     }
     // return data_flow;
 }

@@ -206,8 +206,8 @@ public class MainActivity extends AppCompatActivity {
                 kill();
                 // startService(getServiceIntent().setAction(MyVpnService.ACTION_DISCONNECT));
                 Log.e(TAG, "onClick: stop");
-                // stopService(getServiceIntent());
                 startService(getServiceIntent().setAction(MyVpnService.ACTION_DISCONNECT));
+                stopService(getServiceIntent());
                 Log.e(TAG, "onClick: after stop service");
                 setStop();
             }
