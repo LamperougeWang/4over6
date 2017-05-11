@@ -94,6 +94,9 @@ int total_byte = 0;
 int packet_in = 0;
 int packet_out = 0;
 int total_packet = 0;
+int byte_in_last = 0;
+int byte_out_last = 0;
+long last_time = 0;
 bool kill_it = false;
 
 // 连接信息
@@ -103,7 +106,8 @@ char out_flow[MAX_MESSAGE_LENGTH];
 char in_flow[MAX_MESSAGE_LENGTH];
 char total_flow[MAX_MESSAGE_LENGTH];
 char v6[MAX_MESSAGE_LENGTH];
-
+char up_speed[MAX_MESSAGE_LENGTH];
+char down_speed[MAX_MESSAGE_LENGTH];
 
 bool server_ready = false;
 
@@ -260,6 +264,9 @@ char * get_log(){
         struct tm * start_info;
         struct tm * run_info;
         long t = run_time - start_time;
+
+        long used = run_time - last_time;
+        last_time = run_time;
         run_info = gmtime(&t);
         // VPN开启时间
         sprintf(packet_log, "%s", ip_log);
@@ -271,7 +278,10 @@ char * get_log(){
         num_to_MGB(total_byte, total_flow);
         // sprintf(packet_log, "%s已发送: %d B/%d 个数据包\n已接收: %dB/%d个数据包\n共出入: %dB/%d个数据包", packet_log, byte_out, packet_out, byte_in, packet_in, total_byte, total_packet );
         sprintf(packet_log, "%s已发送: %s/%d 个数据包\n已接收: %s/%d个数据包\n共出入: %s/%d个数据包\n", packet_log, out_flow, packet_out, in_flow, packet_in, total_flow, total_packet );
+        sprintf(packet_log, "%s上传:  %.2f KB/s\n下载: %.2f KB/s\n", packet_log, float(byte_out - byte_out_last)/float(used * 1024), float(byte_in - byte_in_last)/float(used * 1024));
         sprintf(packet_log, "%s上联V6: %s\n", packet_log, v6);
+        byte_out_last = byte_out;
+        byte_in_last = byte_in;
     }
     else {
         sprintf(packet_log, "Top Vpn is connecting....");
