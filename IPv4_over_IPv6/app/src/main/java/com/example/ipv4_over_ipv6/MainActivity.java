@@ -75,6 +75,8 @@ public class MainActivity extends AppCompatActivity {
     public TextView label_local_ipv6;
     public EditText local_ipv6;
 
+    public Thread flushThread = null;
+
     private String mServerAddress = "2402:f000:5:8601:942c:3463:c810:6147";
     private String mServerPort = "6666";
 
@@ -106,6 +108,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void setStop() {
+        try {
+            if(flushThread != null) {
+                flushThread.interrupt();
+                flushThread = null;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         set_STOP();
         try {
             startVPN.setVisibility(View.VISIBLE);
@@ -347,7 +357,7 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
-        Thread flushThread = new Thread(jni_back);
+        flushThread = new Thread(jni_back);
         flushThread.start();
     }
 

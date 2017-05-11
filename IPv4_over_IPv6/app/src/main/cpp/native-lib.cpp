@@ -171,6 +171,9 @@ int kill_myself() {
     packet_in = 0;
     packet_out = 0;
     total_packet = 0;
+    last_time = 0;
+    byte_in_last = 0;
+    byte_out_last = 0;
     server_ready = false;
     get_ip = false;
     if(sockfd) {
@@ -278,6 +281,7 @@ char * get_log(){
         num_to_MGB(total_byte, total_flow);
         // sprintf(packet_log, "%s已发送: %d B/%d 个数据包\n已接收: %dB/%d个数据包\n共出入: %dB/%d个数据包", packet_log, byte_out, packet_out, byte_in, packet_in, total_byte, total_packet );
         sprintf(packet_log, "%s已发送: %s/%d 个数据包\n已接收: %s/%d个数据包\n共出入: %s/%d个数据包\n", packet_log, out_flow, packet_out, in_flow, packet_in, total_flow, total_packet );
+        LOGE("时间%ld", used);
         sprintf(packet_log, "%s上传:  %.2f KB/s\n下载: %.2f KB/s\n", packet_log, float(byte_out - byte_out_last)/float(used * 1024), float(byte_in - byte_in_last)/float(used * 1024));
         sprintf(packet_log, "%s上联V6: %s\n", packet_log, v6);
         byte_out_last = byte_out;
