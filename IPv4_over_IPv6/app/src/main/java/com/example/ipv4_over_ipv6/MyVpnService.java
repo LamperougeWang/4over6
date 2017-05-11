@@ -55,9 +55,6 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     private boolean start = false;
 
 
-
-
-
     // Used to load the 'native-lib' library on application startup.
     static {
         System.loadLibrary("native-lib");

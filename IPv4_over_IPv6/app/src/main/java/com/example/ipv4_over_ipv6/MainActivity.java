@@ -49,6 +49,9 @@ public class MainActivity extends AppCompatActivity {
     public native int kill();
 
 
+    public Intent vpnIntent = null;
+
+
 
     final private String TAG = "Main Activity";
 
@@ -200,8 +203,12 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 // 关闭VPN
                 stoped = true;
+                kill();
                 // startService(getServiceIntent().setAction(MyVpnService.ACTION_DISCONNECT));
-                stopService(getServiceIntent());
+                Log.e(TAG, "onClick: stop");
+                // stopService(getServiceIntent());
+                startService(getServiceIntent().setAction(MyVpnService.ACTION_DISCONNECT));
+                Log.e(TAG, "onClick: after stop service");
                 setStop();
             }
         });
@@ -242,7 +249,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 // 关闭前一个VPN
                 kill();
-                stopService(getServiceIntent());
+                // stopService(getServiceIntent());
 
                 if(!allow) {
                     Toast.makeText(getApplicationContext(), "无IPV6网络，请联网后重试...", Toast.LENGTH_SHORT).show();
@@ -254,7 +261,7 @@ public class MainActivity extends AppCompatActivity {
                             .putString(Prefs.PIPE_DIR, getApplicationContext().getFilesDir().getPath())
                             .commit();
 
-                    kill();
+                    // kill();
 
                     // 有IPv6网络，可以连接,启动C后台
                     Runnable jni_back = new Runnable() {
@@ -267,7 +274,10 @@ public class MainActivity extends AppCompatActivity {
                             mHandler.sendMessage(message);
                             // setStart();
                             startVpn();
+                            Log.e(TAG, "run: startvpn over ready stopservice");
                             stopService(getServiceIntent());
+                            Log.e(TAG, "run: startvpn over after stopservice");
+
                             // set_STOP();
                             // setStop();
                             Message end_message = new Message();
@@ -304,13 +314,13 @@ public class MainActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (resultCode == RESULT_OK) {
             // 如果返回结果是OK的，也就是用户同意建立VPN连接，则将你写的，继承自VpnService类的服务启动起来就行了。
-            Intent intent = new Intent(this, MyVpnService.class);
+            // Intent intent = new Intent(this, MyVpnService.class);
             /*
             intent.putExtra("ROOT", getApplicationContext().getFilesDir().getPath());
             intent.putExtra("SERVER_ADDR", addr.getText().toString());
             intent.putExtra("SERVER_PORT", port.getText().toString());
             */
-            startService(intent.setAction(MyVpnService.ACTION_CONNECT));
+            startService(getServiceIntent().setAction(MyVpnService.ACTION_CONNECT));
         }
     }
 
@@ -344,7 +354,11 @@ public class MainActivity extends AppCompatActivity {
 
 
     private Intent getServiceIntent() {
-        return new Intent(this, MyVpnService.class);
+        if (vpnIntent == null) {
+            Log.e(TAG, "getServiceIntent: New Intent");
+            vpnIntent = new Intent(this, MyVpnService.class);
+        }
+        return vpnIntent;
     }
 
     /**
