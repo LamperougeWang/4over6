@@ -165,12 +165,14 @@ void createMessage(struct Message* msg, char type, char* data, int length)
 int kill_myself() {
     LOGE("Kill Back C");
     connected = false;
+
     byte_in = 0;
     byte_out = 0;
     total_byte = 0;
     packet_in = 0;
     packet_out = 0;
     total_packet = 0;
+    // run_time = 0;
     last_time = 0;
     byte_in_last = 0;
     byte_out_last = 0;
@@ -269,6 +271,9 @@ char * get_log(){
         long t = run_time - start_time;
 
         long used = run_time - last_time;
+        if(used < 1) {
+            used = 1;
+        }
         last_time = run_time;
         run_info = gmtime(&t);
         // VPN开启时间

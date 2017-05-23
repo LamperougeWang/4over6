@@ -223,6 +223,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        // 每4s检查是否有ipv6访问权限
         final Handler net_handler = new Handler();
         Runnable runnable=new Runnable() {
             @Override
@@ -251,7 +252,7 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
-        net_handler.postDelayed(runnable, 2000);//每两秒检查一次网络runnable.
+        net_handler.postDelayed(runnable, 4000);//每两秒检查一次网络runnable.
 
         // 点击按钮连接VPN
         startVPN.setOnClickListener(new View.OnClickListener() {
@@ -299,6 +300,7 @@ public class MainActivity extends AppCompatActivity {
                     cThread = new Thread(jni_back);
                     cThread.start();
 
+                    // 前端定时刷新
                     flush();
 
                     // 客户程序一般需要先调用VpnService.prepare函数
