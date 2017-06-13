@@ -63,31 +63,6 @@ class NetCheck {
     }
 
     static Inet6Address get_IPv6_addr(Context context) throws SocketException {
-        /*
-        //get all local ips
-        Enumeration<NetworkInterface> interfs = NetworkInterface.getNetworkInterfaces();
-        Inet6Address v6_addr = null;
-        while (interfs.hasMoreElements())
-        {
-            Log.e("interface", interfs.toString());
-            NetworkInterface interf = interfs.nextElement();
-            Enumeration<InetAddress> addres = interf.getInetAddresses();
-            while (addres.hasMoreElements())
-            {
-                InetAddress in = addres.nextElement();
-                if (in instanceof Inet4Address)
-                {
-                    Log.e("v4:", in.getHostAddress());
-                }
-                else if (in instanceof Inet6Address)
-                {
-                    v6_addr = (Inet6Address)in;
-                    Log.e("v6:", in.getHostAddress());
-
-                }
-            }
-        }
-        */
 
         if(! isWIFIConnected(context)) {
             return null;

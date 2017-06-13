@@ -67,12 +67,9 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
     // 获得的IP信息
     public native String ip_info();
     // 发送数据
-    public native int send_web_request(char [] data, int length);
-    public native int send_web_requestt(String data, int length);
     public native int send_fd(int fd, String file);
     public native int kill();
     public native int send_addr_port(String addr, int port);
-    public native int startVpn();
 
 
     @Override
@@ -218,12 +215,8 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         dns3 = parameterArray[4];
         // sockrt 描述符
         String sockfd = parameterArray[5];
-
-
         Log.e(TAG, ipv4Addr + " " + router + " " + dns1 + " " + dns2 + " " + dns3 + " " + sockfd);
-
         Builder builder = new Builder();
-
         builder.setMtu(1500);
         builder.addAddress(ipv4Addr, 32);
         builder.addRoute(router, 0); // router is "0.0.0.0" by default
@@ -231,53 +224,20 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         builder.addDnsServer(dns2);
         builder.addDnsServer(dns3);
         builder.setSession("Top Vpn");
-        Log.e(TAG, "configure: before es");
-
-
-
-        /*try {
-            mInterface.close();
-            // mInterface = builder.establish();
-        }catch (Exception e) {
-            e.printStackTrace();
-            Log.e(TAG, "error" + e.toString());
-            // return;
-        }
-        */
-
         try {
-            // mInterface.close();
             mInterface = builder.establish();
         }catch (Exception e) {
             e.printStackTrace();
             Log.e(TAG,"Fatal error: " + e.toString());
             return;
         }
-
         // 5. 把获取到的安卓虚接口描述符写入管道传到后台
-        Log.e(TAG, "configure: after es");
-        int fd = mInterface.getFd();
-        Log.e(TAG, "configure: after getfd");
-        Log.e(TAG, "e" + PIPE_DIR);
-        Log.e(TAG,":虚接口:" + String.valueOf(fd));
+        int fd = c
         send_fd(fd, PIPE_DIR);
-        Log.e(TAG, "after send");
-        // Packets received need to be written tothis output stream.
-        // Java读写虚接口
-        // mInputStream = new FileInputStream(mInterface.getFileDescriptor());
-        // mOutputStream = new FileOutputStream(mInterface.getFileDescriptor());
-
-        //  建立一个到代理服务器的网络链接，用于数据传送
-        // mTunnel = DatagramChannel.open();
-        // Protect the mTunnel before connecting to avoid loopback.
         if (!protect(Integer.parseInt(sockfd))) {
             throw new IllegalStateException("Cannot protect the mTunnel");
         }
-        // mTunnel.connect(new InetSocketAddress(mServerAddress, Integer.parseInt(mServerPort)));
-        // mTunnel.configureBlocking(false);
-
         start = true;
-
         Log.e(TAG, "configure: end");
     }
 
@@ -300,22 +260,17 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
         try {
             Log.e(TAG, "Starting");
             configure();
-            // mHandler.sendEmptyMessage(R.string.connected);
-            Log.e(TAG, "前台已完成");
+            Log.e(TAG, "VPN配置已完成");
             // run_vpn();
             // flush();
             Log.e(TAG, "end?");
 
         } catch (Exception e) {
-            // stopVPNService();
             Log.e(TAG, "Got " + e.toString());
         } finally {
-            // mHandler.sendEmptyMessage(R.string.disconnected);
 
         }
     }
-
-
 
     private boolean run_vpn() throws IOException, InterruptedException {
         // ByteBuffer packet = ByteBuffer.allocate(PACK_SIZE);
@@ -324,146 +279,6 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             // Log.e(TAG, "前台定时读取");
             // sleep(1000);
         }
-        //  一个线程用于接收代理传回的数据，一个线程用于发送手机发出的数据到代理服务器
-        /*
-        Thread recvThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    // Allocate the buffer for a single packet.
-                    ByteBuffer packet = ByteBuffer.allocate(PACK_SIZE);
-                    while (true) {
-                        int length = mTunnel.read(packet);
-                        // mEncrypter.decrypt(packet.array(), length);
-                        if (length > 0) {
-                            if (packet.get(0) != 0) {
-                                packet.limit(length);
-                                try {
-                                    mOutputStream.write(packet.array());
-                                } catch (IOException ie) {
-                                    ie.printStackTrace();
-                                    // NetworkUtils.logIPPack(TAG, packet, length);
-                                }
-                                packet.clear();
-                            }
-                        }
-                    }
-                } catch (IOException ie) {
-                    ie.printStackTrace();
-                }
-            }
-        });
-        recvThread.start();
-        */
-
-        // 读取本机的访问信号
-        /*
-        while (true) {
-
-            int length = mInputStream.read(packet.array());
-            if (length > 0) {
-
-                // debugPacket(packet);
-                // NetworkUtils.logIPPack(TAG, packet, length);
-                byte[] array = packet.array();
-                String data = new String(array);
-
-                // send_web_requestt(data, length);
-                Log.e(TAG, "发送完毕");
-                // Log.e(TAG, data);
-                // Log.e("LEN", String.valueOf(chars.length));
-
-                //NetworkUtils.logIPPack(TAG, packet, length);
-                packet.limit(length);
-                // Log.e(TAG, String.valueOf(length));
-                // mTunnel.write(packet);
-                packet.clear();
-            }
-
-        }
-        */
-
         return false;
-    }
-
-
-
-
-
-    private void debugPacket(ByteBuffer packet) {
-		/*
-		 * for(int i = 0; i < length; ++i) { byte buffer = packet.get();
-		 *
-		 * Log.d(TAG, "byte:"+buffer); }
-		 */
-
-        int buffer = packet.get();
-        int version;
-        int headerlength;
-        version = buffer >> 4;
-        headerlength = buffer & 0x0F;
-        headerlength *= 4;
-        Log.e(TAG, "IP Version:" + version);
-        Log.e(TAG, "Header Length:" + headerlength);
-
-        String status = "";
-        status += "Header Length:" + headerlength;
-
-        buffer = packet.get(); // DSCP + EN
-        buffer = packet.getChar(); // Total Length
-
-        Log.e(TAG, "Total Length:" + buffer);
-
-        buffer = packet.getChar(); // Identification
-        buffer = packet.getChar(); // Flags + Fragment Offset
-        buffer = packet.get(); // Time to Live
-        buffer = packet.get(); // Protocol
-
-        Log.e(TAG, "Protocol:" + buffer);
-
-        status += "  Protocol:" + buffer;
-
-        buffer = packet.getChar(); // Header checksum
-
-        String sourceIP = "";
-        buffer = packet.get(); // Source IP 1st Octet
-        sourceIP += buffer;
-        sourceIP += ".";
-
-        buffer = packet.get(); // Source IP 2nd Octet
-        sourceIP += buffer;
-        sourceIP += ".";
-
-        buffer = packet.get(); // Source IP 3rd Octet
-        sourceIP += buffer;
-        sourceIP += ".";
-
-        buffer = packet.get(); // Source IP 4th Octet
-        sourceIP += buffer;
-
-        Log.e(TAG, "Source IP:" + sourceIP);
-
-        status += "   Source IP:" + sourceIP;
-
-        String destIP = "";
-        buffer = packet.get(); // Destination IP 1st Octet
-        destIP += buffer;
-        destIP += ".";
-
-        buffer = packet.get(); // Destination IP 2nd Octet
-        destIP += buffer;
-        destIP += ".";
-
-        buffer = packet.get(); // Destination IP 3rd Octet
-        destIP += buffer;
-        destIP += ".";
-
-        buffer = packet.get(); // Destination IP 4th Octet
-        destIP += buffer;
-
-        Log.e(TAG, "Destination IP:" + destIP);
-
-        status += "   Destination IP:" + destIP;
-
     }
 }
