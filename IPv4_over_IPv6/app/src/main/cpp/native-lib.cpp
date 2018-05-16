@@ -462,7 +462,7 @@ void * new_th(void * arg) {
     }
     return NULL;
 }
-p
+
 extern "C"
 JNIEXPORT jint JNICALL
 Java_com_example_ipv4_1over_1ipv6_MainActivity_kill(JNIEnv *env, jobject instance) {
@@ -564,7 +564,7 @@ Java_com_example_ipv4_1over_1ipv6_MainActivity_startVpn(JNIEnv *env, jobject ins
     pthread_t recv_data;
     pthread_t heart_th;
     int ret = 0;
-    ret = pthread_create(&new_data, NULL, new_th, NULL);
+    ret = pthread_create(&recv_data, NULL, new_th, NULL);
     if(ret) {
         LOGE("Create pthread error!");
         return 1;
@@ -575,7 +575,7 @@ Java_com_example_ipv4_1over_1ipv6_MainActivity_startVpn(JNIEnv *env, jobject ins
         return 1;
     }
     pthread_join(heart_th, NULL);
-    pthread_join(new_data, NULL);
+    pthread_join(recv_data, NULL);
     LOGE("startVpn ready to kill");
     kill_myself();
     LOGE("Start Vpn END");

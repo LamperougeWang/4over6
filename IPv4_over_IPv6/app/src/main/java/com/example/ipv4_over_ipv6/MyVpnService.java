@@ -232,7 +232,7 @@ public class MyVpnService extends VpnService implements Handler.Callback, Runnab
             return;
         }
         // 5. 把获取到的安卓虚接口描述符写入管道传到后台
-        int fd = c
+        int fd = mInterface.getFd();
         send_fd(fd, PIPE_DIR);
         if (!protect(Integer.parseInt(sockfd))) {
             throw new IllegalStateException("Cannot protect the mTunnel");

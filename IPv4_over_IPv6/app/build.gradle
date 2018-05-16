@@ -15,6 +15,9 @@ android {
                 cppFlags "-frtti -fexceptions"
             }
         }
+        ndk {
+            abiFilters "armeabi-v7a", "x86"   //配置需要的so
+        }
     }
     buildTypes {
         release {
